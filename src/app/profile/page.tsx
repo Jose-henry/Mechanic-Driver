@@ -4,6 +4,7 @@ import { Navbar } from "@/components/Navbar";
 import { Footer } from "@/components/Footer";
 import { deleteAccount } from "../auth/actions";
 import { DeleteAccountSection } from "./DeleteAccountSection";
+import { EditProfileForm } from "./EditProfileForm";
 
 export default async function ProfilePage({
     searchParams,
@@ -46,37 +47,7 @@ export default async function ProfilePage({
 
                     <div className="bg-white border border-gray-200 rounded-2xl p-6 md:p-8 space-y-8 shadow-sm">
 
-                        <div className="grid md:grid-cols-2 gap-8">
-                            <div className="space-y-4">
-                                <div>
-                                    <label className="text-sm font-medium text-gray-500">Full Name</label>
-                                    <p className="text-lg font-medium text-gray-900 border-b border-gray-100 py-2">
-                                        {profile?.full_name || user.user_metadata.full_name || 'N/A'}
-                                    </p>
-                                </div>
-                                <div>
-                                    <label className="text-sm font-medium text-gray-500">Email Address</label>
-                                    <p className="text-lg font-medium text-gray-900 border-b border-gray-100 py-2">
-                                        {user.email}
-                                    </p>
-                                </div>
-                            </div>
-
-                            <div className="space-y-4">
-                                <div>
-                                    <label className="text-sm font-medium text-gray-500">Phone</label>
-                                    <p className="text-lg font-medium text-gray-900 border-b border-gray-100 py-2">
-                                        {profile?.phone || user.user_metadata.phone || 'N/A'}
-                                    </p>
-                                </div>
-                                <div>
-                                    <label className="text-sm font-medium text-gray-500">User ID</label>
-                                    <p className="text-sm font-mono text-gray-400 border-b border-gray-100 py-3">
-                                        {user.id}
-                                    </p>
-                                </div>
-                            </div>
-                        </div>
+                        <EditProfileForm user={user} profile={profile} />
 
                         <DeleteAccountSection />
 

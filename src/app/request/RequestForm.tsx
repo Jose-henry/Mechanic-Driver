@@ -69,15 +69,22 @@ export function RequestForm() {
             </div>
 
             <div className="space-y-2">
+                <label className="text-sm font-medium text-gray-700">Pickup Location</label>
+                <input name="pickupLocation" required type="text" placeholder="123 Main St, Lagos" className="w-full p-4 bg-gray-50 border border-gray-200 rounded-xl focus:outline-none focus:ring-2 focus:ring-lime-300" />
+            </div>
+
+            <div className="space-y-2">
                 <label className="text-sm font-medium text-gray-700">Description of Issue</label>
                 <textarea name="description" required rows={4} placeholder="Describe what's wrong (e.g. Engine making noise, Brakes skipping)" className="w-full p-4 bg-gray-50 border border-gray-200 rounded-xl focus:outline-none focus:ring-2 focus:ring-lime-300"></textarea>
             </div>
 
-            {state?.error && state.error !== 'unauthenticated' && (
-                <div className="rounded-xl bg-red-50 p-4 border border-red-100">
-                    <p className="text-sm text-red-600">Error: {state.error}</p>
-                </div>
-            )}
+            {
+                state?.error && state.error !== 'unauthenticated' && (
+                    <div className="rounded-xl bg-red-50 p-4 border border-red-100">
+                        <p className="text-sm text-red-600">Error: {state.error}</p>
+                    </div>
+                )
+            }
 
             <button
                 type="submit"
@@ -86,6 +93,6 @@ export function RequestForm() {
             >
                 {isPending ? 'Processing...' : 'Confirm Order'} <ChevronRight className="w-5 h-5" />
             </button>
-        </form>
+        </form >
     )
 }

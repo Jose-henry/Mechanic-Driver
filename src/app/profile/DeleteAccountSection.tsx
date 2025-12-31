@@ -42,7 +42,7 @@ export function DeleteAccountSection() {
 
                 <button
                     onClick={() => setShowConfirm(true)}
-                    className="px-6 py-3 bg-red-50 text-red-600 text-sm font-medium rounded-xl border border-red-100 hover:bg-red-100 transition-colors"
+                    className="mt-2 text-gray-400 hover:text-red-600 text-sm font-medium transition-colors"
                 >
                     Delete my account
                 </button>

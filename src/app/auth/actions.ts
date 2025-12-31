@@ -87,6 +87,10 @@ export async function loginWithGoogle(formData: FormData) {
         provider: 'google',
         options: {
             redirectTo: `${process.env.NEXT_PUBLIC_BASE_URL || 'http://localhost:3000'}/auth/callback${returnTo ? `?returnTo=${returnTo}` : ''}`,
+            queryParams: {
+                access_type: 'offline',
+                prompt: 'consent',
+            },
         },
     })
 
@@ -193,4 +197,43 @@ export async function resetPassword(formData: FormData) {
     }
 
     redirect('/signin?message=Password updated successfully. Please sign in.')
+}
+
+export async function updateProfile(prevState: any, formData: FormData) {
+    const supabase = await createClient()
+    const { data: { user } } = await supabase.auth.getUser()
+
+    if (!user) return { error: 'Not authenticated' }
+
+    const fullName = formData.get('fullName') as string
+    const phone = formData.get('phone') as string
+
+    // 1. Update Auth Metadata (User Identity)
+    const { error: authError } = await supabase.auth.updateUser({
+        data: {
+            full_name: fullName,
+            phone: phone
+        }
+    })
+
+    if (authError) return { error: authError.message }
+
+    // 2. Update Profiles Table (Application Data)
+    // NOTE: This might fail if 'phone' column doesn't exist. We'll catch and ignore specific schema errors
+    // or just rely on the Auth Metadata update above which is actually what we display mostly.
+
+    // We try to upsert.
+    const { error: profileError } = await supabase
+        .from('profiles')
+        .upsert({
+            id: user.id,
+            full_name: fullName,
+            phone: phone,
+            updated_at: new Date().toISOString()
+        })
+
+    if (profileError) return { error: profileError.message }
+
+    revalidatePath('/profile')
+    return { success: true }
 }

@@ -17,6 +17,7 @@ export async function submitRequest(prevState: any, formData: FormData) {
         pickupDate: formData.get('pickupDate'),
         pickupTime: formData.get('pickupTime'),
         description: formData.get('description'),
+        pickupLocation: formData.get('pickupLocation'),
     }
 
     // Validate with Zod
@@ -31,7 +32,7 @@ export async function submitRequest(prevState: any, formData: FormData) {
         }
     }
 
-    const { brand, model, year, licensePlate, pickupDate, pickupTime, description } = result.data;
+    const { brand, model, year, licensePlate, pickupLocation, pickupDate, pickupTime, description } = result.data;
 
     // Use the already fetched user variable
 
@@ -50,6 +51,7 @@ export async function submitRequest(prevState: any, formData: FormData) {
         model,
         year: year, // Zod coerced it to number
         license_plate: licensePlate,
+        pickup_location: pickupLocation,
         pickup_date: pickupDate,
         pickup_time: pickupTime,
         issue_description: description,
@@ -60,7 +62,7 @@ export async function submitRequest(prevState: any, formData: FormData) {
         return { error: error.message }
     }
 
-    redirect('/tracking')
+    redirect('/tracking?success=true')
 }
 
 export async function submitRequestJson(data: any) {
@@ -77,7 +79,7 @@ export async function submitRequestJson(data: any) {
         return { error: validation.error.issues[0].message }
     }
 
-    const { brand, model, year, licensePlate, pickupDate, pickupTime, description } = validation.data;
+    const { brand, model, year, licensePlate, pickupLocation, pickupDate, pickupTime, description } = validation.data;
 
     const { error: insertError } = await supabase.from('requests').insert({
         user_id: user.id,
@@ -85,6 +87,7 @@ export async function submitRequestJson(data: any) {
         model,
         year,
         license_plate: licensePlate,
+        pickup_location: pickupLocation,
         pickup_date: pickupDate,
         pickup_time: pickupTime,
         issue_description: description,
@@ -93,6 +96,58 @@ export async function submitRequestJson(data: any) {
 
     if (insertError) {
         return { error: insertError.message }
+    }
+
+    return { success: true }
+}
+
+export async function cancelRequest(requestId: string) {
+    const supabase = await createClient()
+    const { data: { user } } = await supabase.auth.getUser()
+
+    if (!user) {
+        return { error: 'unauthenticated' }
+    }
+
+    // Check current status
+    const { data: request, error: fetchError } = await supabase
+        .from('requests')
+        .select('status')
+        .eq('id', requestId)
+        .eq('user_id', user.id)
+        .single()
+
+    if (fetchError || !request) {
+        return { error: 'Request not found' }
+    }
+
+    const nonCancellableStatuses = [
+        'vehicle_en_route_to_workshop',
+        'vehicle_at_workshop',
+        'quote_accepted',
+        'service_commenced',
+        'service_completed',
+        'vehicle_en_route_to_owner',
+        'vehicle_delivered',
+        'cancelled'
+    ]
+
+    if (nonCancellableStatuses.includes(request.status)) {
+        return { error: 'Cannot cancel request at this stage' }
+    }
+
+    const { count, error } = await supabase
+        .from('requests')
+        .delete({ count: 'exact' })
+        .eq('id', requestId)
+        .eq('user_id', user.id)
+
+    if (error) {
+        return { error: error.message }
+    }
+
+    if (count === 0) {
+        return { error: 'Failed to delete request. Check RLS policies.' }
     }
 
     return { success: true }
