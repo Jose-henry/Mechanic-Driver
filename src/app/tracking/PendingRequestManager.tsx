@@ -36,9 +36,11 @@ export function PendingRequestManager() {
                     setTimeout(() => setSuccess(false), 5000);
                 } else {
                     console.error("Failed to submit deferred request:", result.error);
-                    // Standard: keep it in storage so they can try again? 
-                    // Or alert user? For now just log.
-                    // If error is unauthenticated, they shouldn't be here (or session expired).
+                    // Critical fix: If submission fails (e.g. duplicate, validation, or random error), 
+                    // we MUST clear the storage to prevent an infinite loop of "Finalizing your order" 
+                    // every time the user logs in. Better to lose one request than break the UX.
+                    localStorage.removeItem('pendingRequest');
+                    // Optional: could set an error state here to show a toast "Could not restore your request"
                 }
             } catch (e) {
                 console.error("Error processing pending request", e);

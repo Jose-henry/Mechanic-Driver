@@ -1,7 +1,8 @@
 import Link from "next/link";
 import { Wrench, LogOut } from "lucide-react";
 import { createClient } from "@/utils/supabase/server";
-import { logout } from "@/app/auth/actions"; // Assuming this action exists or will be exported
+import { logout } from "@/app/auth/actions";
+import { NavLinks } from "./NavLinks";
 
 export async function Navbar() {
     const supabase = await createClient();
@@ -19,26 +20,7 @@ export async function Navbar() {
                     </span>
                 </Link>
 
-                <div className="hidden md:flex items-center gap-8">
-                    <Link
-                        href="/#how-it-works"
-                        className="text-sm font-medium text-gray-500 hover:text-gray-900 transition-colors"
-                    >
-                        How it works
-                    </Link>
-                    <Link
-                        href="/request"
-                        className="text-sm font-medium text-gray-500 hover:text-gray-900 transition-colors"
-                    >
-                        Request
-                    </Link>
-                    <Link
-                        href="/tracking"
-                        className="text-sm font-medium text-gray-500 hover:text-gray-900 transition-colors"
-                    >
-                        Tracking
-                    </Link>
-                </div>
+                <NavLinks />
 
                 <div className="flex items-center gap-4">
                     {!user ? (
