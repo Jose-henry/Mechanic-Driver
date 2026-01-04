@@ -61,3 +61,30 @@ export function generateSection(title: string) {
     <h3 style="color: #84cc16; font-size: 14px; text-transform: uppercase; letter-spacing: 1px; margin: 25px 0 15px; padding-bottom: 8px; border-bottom: 1px solid #333333;">${title}</h3>
     `
 }
+
+export function generateReceiptTable(items: { description: string; amount: number }[], total: number) {
+    const rows = items.map(item => `
+        <tr>
+            <td style="padding: 12px 0; border-bottom: 1px solid #333; color: #e5e5e5;">${item.description}</td>
+            <td style="padding: 12px 0; border-bottom: 1px solid #333; text-align: right; color: #ffffff; font-weight: 500;">₦${item.amount.toLocaleString()}</td>
+        </tr>
+    `).join('')
+
+    return `
+    <table width="100%" border="0" cellspacing="0" cellpadding="0" style="margin: 20px 0;">
+        <thead>
+            <tr>
+                <th align="left" style="padding-bottom: 12px; border-bottom: 2px solid #84cc16; color: #84cc16; font-size: 12px; text-transform: uppercase; letter-spacing: 1px;">Description</th>
+                <th align="right" style="padding-bottom: 12px; border-bottom: 2px solid #84cc16; color: #84cc16; font-size: 12px; text-transform: uppercase; letter-spacing: 1px;">Amount</th>
+            </tr>
+        </thead>
+        <tbody>
+            ${rows}
+            <tr>
+                <td style="padding-top: 20px; font-weight: bold; color: #ffffff; font-size: 16px;">Total</td>
+                <td style="padding-top: 20px; text-align: right; font-weight: bold; color: #84cc16; font-size: 20px;">₦${total.toLocaleString()}</td>
+            </tr>
+        </tbody>
+    </table>
+    `
+}

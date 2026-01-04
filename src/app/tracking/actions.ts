@@ -3,7 +3,7 @@
 import { createClient } from "@/utils/supabase/server"
 import { revalidatePath } from "next/cache"
 import { sendEmail } from "@/utils/mail"
-import { getEmailTemplate, generateKeyValue, generateSection } from "@/utils/email-template"
+import { getEmailTemplate, generateKeyValue, generateSection, generateReceiptTable } from "@/utils/email-template"
 
 export async function acceptQuote(requestId: string, quoteId: string) {
     const supabase = await createClient()
@@ -107,6 +107,12 @@ export async function markRequestPaid(requestId: string, details: any) {
     // Fetch Request Details
     const { data: req } = await supabase.from('requests').select('*').eq('id', requestId).single()
 
+    // Fetch Accepted Quote for Breakdown
+    const { data: quote } = await supabase.from('quotes').select('breakdown').eq('request_id', requestId).eq('status', 'accepted').single()
+    // Explicitly cast or validate breakdown. Assuming it matches { description: string, amount: number }[]
+    const breakdownItems = Array.isArray(quote?.breakdown) ? quote.breakdown :
+        quote?.breakdown ? [{ description: 'Service Charge', amount: Number(details.amount) }] : []
+
     // 1. Update Request Payment Status
     const { error } = await supabase
         .from('requests')
@@ -142,6 +148,29 @@ export async function markRequestPaid(requestId: string, details: any) {
         subject: `PAYMENT VERIFICATION: ₦${details.amount} - Request #${requestId.slice(0, 6)}`,
         html: getEmailTemplate('Payment Verification', emailContent)
     })
+
+    // 3. Send Receipt to User
+    if (user?.email) {
+        const receiptContent = `
+            <p style="color: #e5e5e5; font-size: 16px; margin-bottom: 24px;">
+                Thank you for your payment! We have received your confirmation.
+            </p>
+
+            ${generateSection('Transaction Receipt')}
+            ${generateReceiptTable(breakdownItems as any, Number(details.amount))}
+
+            <div style="margin-top: 30px; padding-top: 20px; border-top: 1px dashed #333; text-align: center;">
+                <p style="color: #666; font-size: 12px; margin: 0;">Transaction Reference</p>
+                <p style="color: #888; font-family: monospace; font-size: 14px; margin: 5px 0;">${requestId.toUpperCase()}</p>
+            </div>
+        `
+
+        await sendEmail({
+            to: user.email,
+            subject: `Receipt: ₦${Number(details.amount).toLocaleString()} - Mechanic Driver`,
+            html: getEmailTemplate('Payment Successful', receiptContent)
+        })
+    }
 
     revalidatePath('/tracking')
     return { success: true }

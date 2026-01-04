@@ -554,7 +554,7 @@ export default function TrackingCard({ req, cancelledIds, onCancelSuccess }: { r
                                         <Loader2 className="w-4 h-4 animate-spin" />
                                         Verifying Payment...
                                     </div>
-                                ) : quote && quote.status === 'pending' && req.status !== 'cancelled' ? (
+                                ) : quote && quote.status === 'pending' && req.status !== 'cancelled' && req.payment_status !== 'paid' ? (
                                     <>
                                         <button
                                             onClick={() => handleQuote('reject')}
@@ -579,11 +579,11 @@ export default function TrackingCard({ req, cancelledIds, onCancelSuccess }: { r
                                         <CreditCard className="w-4 h-4" />
                                         Pay Outstanding Balance
                                     </button>
-                                ) : (
+                                ) : req.payment_status !== 'paid' ? (
                                     <button disabled className="w-full py-3 bg-[#252525] text-gray-600 rounded-xl font-medium text-sm cursor-not-allowed">
                                         Awaiting final bill...
                                     </button>
-                                )}
+                                ) : null}
                             </div>
                         </div>
                     )}
