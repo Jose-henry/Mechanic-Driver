@@ -18,7 +18,7 @@ export function getEmailTemplate(title: string, content: string) {
                         <tr>
                             <td style="background-color: #1e1e1e; padding: 30px 40px; border-bottom: 1px solid #333333;">
                                 <h1 style="margin: 0; font-size: 24px; font-weight: 700; color: #ffffff;">
-                                    Mechanic<span style="color: #84cc16;">Driver</span>
+                                    Mechanic <span style="color: #84cc16;">Driver</span>
                                 </h1>
                             </td>
                         </tr>
