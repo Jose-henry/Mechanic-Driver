@@ -17,18 +17,9 @@ export async function GET(request: Request) {
             const forwardedHost = request.headers.get('x-forwarded-host')
             const isLocalEnv = process.env.NODE_ENV === 'development'
 
-            // Determine if we should show the "Verified" banner
-            // We only want to show it for Email OTP/MagicLink flows, not Google.
-            // When Supabase redirects back, we can sometimes deduce this, but easier is to check the session?
-            // Or easier: Google auth flow doesn't usually use a 'code' in the same way with a magic link? 
-            // Actually, OAuth *does* use a code ('exchangeCodeForSession').
-
-            // To differentiate:
-            // We can check user.app_metadata.provider?
-            const { data: { session } } = await supabase.auth.getSession()
-            const provider = session?.user?.app_metadata?.provider
-            const showVerified = provider === 'email'
-
+            // Only show "Verified" banner if this was an actual email verification flow
+            const type = searchParams.get('type')
+            const showVerified = type === 'signup' || type === 'invite'
             const verifiedParam = showVerified ? '?verified=true' : ''
 
             if (isLocalEnv) {
@@ -46,7 +37,7 @@ export async function GET(request: Request) {
                 // but if they are already logged in, it's safer not to show 'verified' unless we know?
                 // Let's assume if it was a race condition on a link, it was email.
                 // But could be re-used OAuth code? Unlikely.
-                return NextResponse.redirect(`${origin}${returnTo || next}?verified=true`)
+                return NextResponse.redirect(`${origin}${returnTo || next}`)
             }
             console.error('Auth verification error:', error.message)
         }

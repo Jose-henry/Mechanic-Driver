@@ -24,4 +24,8 @@ export const requestSchema = z.object({
     }),
     pickupTime: z.string().min(1, "Please select a pickup time"),
     description: z.string().min(10, "Please provide more detail about the issue (at least 10 characters)"),
+    // New fields
+    serviceType: z.string().min(3, "Please specify the service needed"),
+    isTowing: z.boolean().optional(),
+    isCarWash: z.boolean().optional(),
 });

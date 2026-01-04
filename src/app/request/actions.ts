@@ -18,26 +18,24 @@ export async function submitRequest(prevState: any, formData: FormData) {
         pickupTime: formData.get('pickupTime'),
         description: formData.get('description'),
         pickupLocation: formData.get('pickupLocation'),
+        // New fields
+        serviceType: formData.get('serviceType'),
+        isTowing: formData.get('isTowing') === 'on',
+        isCarWash: formData.get('isCarWash') === 'on',
     }
 
     // Validate with Zod
     const result = requestSchema.safeParse(rawData);
 
     if (!result.success) {
-        // Return first error message for simplicity, or structure field errors if UI supports it
-        // RequestForm uses `state.error` for a global message currently.
         return {
             error: result.error.issues[0].message,
             formData: rawData
         }
     }
 
-    const { brand, model, year, licensePlate, pickupLocation, pickupDate, pickupTime, description } = result.data;
+    const { brand, model, year, licensePlate, pickupLocation, pickupDate, pickupTime, description, serviceType, isTowing, isCarWash } = result.data;
 
-    // Use the already fetched user variable
-
-    // If no user, return special status to let client handle redirect & storage
-    // NOTE: We check user AFTER validation so we don't redirect for invalid forms.
     if (!user) {
         return {
             error: 'unauthenticated',
@@ -45,24 +43,34 @@ export async function submitRequest(prevState: any, formData: FormData) {
         }
     }
 
-    const { data, error } = await supabase.from('requests').insert({
+    const { data: request, error } = await supabase.from('requests').insert({
         user_id: user.id,
         brand,
         model,
-        year: year, // Zod coerced it to number
+        year,
         license_plate: licensePlate,
         pickup_location: pickupLocation,
         pickup_date: pickupDate,
         pickup_time: pickupTime,
         issue_description: description,
-        status: 'pending'
+        // New columns
+        service_type: serviceType,
+        is_towing: isTowing,
+        is_car_wash: isCarWash,
+        status: 'pickup_scheduled' // Initial status as per new flow
     }).select().single()
 
     if (error) {
         return { error: error.message }
     }
 
-    redirect('/tracking?success=true')
+    // Redirect to confirmation page (Price List) instead of direct tracking
+    // Pass flags to show correct prices
+    const params = new URLSearchParams();
+    if (isTowing) params.append('towing', 'true');
+    if (isCarWash) params.append('wash', 'true');
+
+    redirect(`/request/confirmation?${params.toString()}`)
 }
 
 export async function submitRequestJson(data: any) {
@@ -79,7 +87,7 @@ export async function submitRequestJson(data: any) {
         return { error: validation.error.issues[0].message }
     }
 
-    const { brand, model, year, licensePlate, pickupLocation, pickupDate, pickupTime, description } = validation.data;
+    const { brand, model, year, licensePlate, pickupLocation, pickupDate, pickupTime, description, serviceType, isTowing, isCarWash } = validation.data;
 
     const { error: insertError } = await supabase.from('requests').insert({
         user_id: user.id,
@@ -91,7 +99,10 @@ export async function submitRequestJson(data: any) {
         pickup_date: pickupDate,
         pickup_time: pickupTime,
         issue_description: description,
-        status: 'pending'
+        service_type: serviceType,
+        is_towing: isTowing,
+        is_car_wash: isCarWash,
+        status: 'pickup_scheduled'
     })
 
     if (insertError) {

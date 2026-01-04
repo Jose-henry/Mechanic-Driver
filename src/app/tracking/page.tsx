@@ -19,13 +19,26 @@ export default async function TrackingPage({
     let requests: any[] = []
 
     if (user) {
-        const { data } = await supabase
+        const { data: requestsData } = await supabase
             .from('requests')
-            .select('*')
+            .select(`
+                *,
+                driver:drivers(*),
+                quote:quotes(*)
+            `)
             .eq('user_id', user.id)
             .order('created_at', { ascending: false })
 
-        requests = data || []
+        // Sanitize requests to ensure no undefined items
+        requests = (requestsData || [])
+            .filter(r => r && r.id)
+            .map(r => ({
+                ...r,
+                driver: Array.isArray(r.driver) ? r.driver[0] : r.driver,
+                quote: Array.isArray(r.quote) ? r.quote[0] : r.quote
+            }));
+        
+        console.log('TrackingPage: Fetched requests', requests.length);
     }
 
     return (
