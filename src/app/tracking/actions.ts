@@ -3,6 +3,7 @@
 import { createClient } from "@/utils/supabase/server"
 import { revalidatePath } from "next/cache"
 import { sendEmail } from "@/utils/mail"
+import { getEmailTemplate, generateKeyValue, generateSection } from "@/utils/email-template"
 
 export async function acceptQuote(requestId: string, quoteId: string) {
     const supabase = await createClient()
@@ -50,21 +51,32 @@ export async function rejectQuote(requestId: string, quoteId: string, reason: st
 
     if (requestError) return { success: false, error: requestError.message }
 
-    // 3. Send Real Email
+    // 3. Send Real Email (Styled)
+    const emailContent = `
+        <p style="color: #e5e5e5; font-size: 16px; margin-bottom: 24px;">
+            A quote has been declined by the user. The request is now paused.
+        </p>
+        
+        ${generateSection('Decline Reason')}
+        <div style="background-color: #2a1515; border-left: 4px solid #ef4444; padding: 15px; border-radius: 4px; color: #fca5a5; font-style: italic;">
+            "${reason}"
+        </div>
+
+        ${generateSection('User Details')}
+        ${generateKeyValue('Full Name', user?.user_metadata?.full_name || 'N/A')}
+        ${generateKeyValue('Email', user?.email || 'N/A')}
+        ${generateKeyValue('User ID', user?.id || 'N/A')}
+
+        ${generateSection('Request Context')}
+        ${generateKeyValue('Request ID', requestId)}
+        ${generateKeyValue('Vehicle', `${req?.year} ${req?.brand} ${req?.model}`)}
+        ${generateKeyValue('Location', req?.pickup_location || 'N/A')}
+    `
+
     await sendEmail({
         to: 'cherubhenry@gmail.com, josephhenry093@gmail.com',
-        subject: `ACTION REQUIRED: Quote Declined - Request #${requestId.slice(0, 6)}`,
-        html: `
-            <h2>Quote Declined by User</h2>
-            <p><strong>Reason:</strong> ${reason}</p>
-            <hr/>
-            <h3>User Details</h3>
-            <p><strong>Name:</strong> ${user?.user_metadata?.full_name || 'N/A'}</p>
-            <p><strong>Email:</strong> ${user?.email}</p>
-            <h3>Request Details</h3>
-            <p><strong>Vehicle:</strong> ${req?.year} ${req?.brand} ${req?.model}</p>
-            <p><strong>Location:</strong> ${req?.pickup_location}</p>
-        `
+        subject: `Start Request: Quote Declined - ${req?.brand} ${req?.model}`,
+        html: getEmailTemplate('Quote Declined', emailContent)
     })
 
     revalidatePath('/tracking')
@@ -103,21 +115,32 @@ export async function markRequestPaid(requestId: string, details: any) {
 
     if (error) return { success: false, error: error.message }
 
+    // 2. Send Real Email (Styled)
+    const emailContent = `
+        <p style="color: #e5e5e5; font-size: 16px; margin-bottom: 24px;">
+            User has marked the request as <strong>PAID</strong>. Please verify the bank transaction.
+        </p>
+
+        <div style="background-color: #1a2e15; border: 1px solid #365314; padding: 20px; border-radius: 8px; text-align: center; margin-bottom: 20px;">
+            <span style="color: #4ade80; font-size: 12px; text-transform: uppercase; letter-spacing: 1px;">Amount Paid</span>
+            <div style="color: #ffffff; font-size: 32px; font-weight: bold; margin-top: 5px;">₦${Number(details.amount).toLocaleString()}</div>
+        </div>
+
+        ${generateSection('User Details')}
+        ${generateKeyValue('Full Name', user?.user_metadata?.full_name || 'N/A')}
+        ${generateKeyValue('Email', user?.email || 'N/A')}
+        ${generateKeyValue('User ID', user?.id || 'N/A')}
+
+        ${generateSection('Request Context')}
+        ${generateKeyValue('Request ID', requestId)}
+        ${generateKeyValue('Vehicle', `${req?.year} ${req?.brand} ${req?.model}`)}
+        ${generateKeyValue('License Plate', req?.license_plate || 'N/A')}
+    `
+
     await sendEmail({
         to: 'cherubhenry@gmail.com, josephhenry093@gmail.com',
-        subject: `PAYMENT VERIFICATION: Request #${requestId.slice(0, 6)}`,
-        html: `
-            <h2>Payment Verification Needed</h2>
-            <p>User has marked request as PAID.</p>
-            <p><strong>Amount:</strong> ₦${details.amount}</p>
-            <hr/>
-            <h3>User Details</h3>
-            <p><strong>Name:</strong> ${user?.user_metadata?.full_name || 'N/A'}</p>
-            <p><strong>Email:</strong> ${user?.email}</p>
-            <h3>Request Context</h3>
-            <p><strong>Vehicle:</strong> ${req?.year} ${req?.brand} ${req?.model}</p>
-            <p><strong>Plate:</strong> ${req?.license_plate || 'N/A'}</p>
-        `
+        subject: `PAYMENT VERIFICATION: ₦${details.amount} - Request #${requestId.slice(0, 6)}`,
+        html: getEmailTemplate('Payment Verification', emailContent)
     })
 
     revalidatePath('/tracking')
@@ -152,21 +175,31 @@ export async function addPickupNote(requestId: string, note: string) {
     revalidatePath('/tracking')
 
     // Mock Email with Full Details
-    // Real Email
+    // Real Email (Styled)
+    const emailContent = `
+        <p style="color: #e5e5e5; font-size: 16px; margin-bottom: 24px;">
+            A new pickup note has been added to the request.
+        </p>
+
+        <div style="background-color: #262626; border-left: 4px solid #84cc16; padding: 15px; border-radius: 4px; color: #ffffff; font-style: italic;">
+            "${note}"
+        </div>
+
+        ${generateSection('User Details')}
+        ${generateKeyValue('Full Name', user?.user_metadata?.full_name || 'N/A')}
+        ${generateKeyValue('Email', user?.email || 'N/A')}
+        ${generateKeyValue('User ID', user?.id || 'N/A')}
+
+        ${generateSection('Request Context')}
+        ${generateKeyValue('Request ID', requestId)}
+        ${generateKeyValue('Vehicle', `${request?.year} ${request?.brand} ${request?.model}`)}
+        ${generateKeyValue('Location', request?.pickup_location || 'N/A')}
+    `
+
     await sendEmail({
         to: 'cherubhenry@gmail.com, josephhenry093@gmail.com',
         subject: `NEW NOTE: Request #${requestId.slice(0, 6)}`,
-        html: `
-            <h2>New Pickup Note</h2>
-            <p><strong>Note:</strong> "${note}"</p>
-            <hr/>
-            <h3>User Details</h3>
-            <p><strong>Name:</strong> ${user?.user_metadata?.full_name || 'N/A'}</p>
-            <p><strong>Email:</strong> ${user?.email}</p>
-            <h3>Request Context</h3>
-            <p><strong>Vehicle:</strong> ${request.year} ${request.brand} ${request.model}</p>
-            <p><strong>Location:</strong> ${request.pickup_location}</p>
-        `
+        html: getEmailTemplate('New Pickup Note', emailContent)
     })
 
     return { success: true }
