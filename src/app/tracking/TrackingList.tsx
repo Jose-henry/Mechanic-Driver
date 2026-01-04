@@ -6,6 +6,7 @@ import { useRouter } from 'next/navigation'
 import { Car, Plus } from 'lucide-react'
 import TrackingCard from './TrackingCard'
 
+
 export function TrackingList({ requests }: { requests: any[] }) {
     const router = useRouter()
     const [cancelledIds, setCancelledIds] = useState<Set<string>>(new Set())
@@ -41,12 +42,16 @@ export function TrackingList({ requests }: { requests: any[] }) {
                     </div>
                     <h2 className="text-2xl font-bold text-gray-900 mb-2">No Active Jobs</h2>
                     <p className="text-gray-500 mb-8">Ready to get your car fixed securely?</p>
-                    <Link href="/request" className="text-lime-600 font-semibold hover:underline">
+                    <Link href="/request" className="text-lime-600 font-semibold hover:underline block mb-8">
                         Book a driver now
                     </Link>
+
+
                 </div>
             ) : (
                 <div className="grid gap-8">
+
+
                     {requests.map((req, i) => {
                         if (!req) return null;
                         return (

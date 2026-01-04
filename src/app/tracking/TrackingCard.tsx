@@ -1,15 +1,13 @@
-'use client'
-
-import { useState } from 'react'
+import { useState, useEffect } from 'react'
+import { createClient } from '@/utils/supabase/client'
 import {
     Loader2, Car, Phone, Star, CheckCircle,
     MessageSquare, AlertTriangle, ChevronRight, ChevronDown,
     CreditCard, Clock, MapPin, Wrench, MoreVertical,
-    Share2, Flag, XCircle
+    Share2, Flag, XCircle, Plus
 } from 'lucide-react'
 import { cancelRequest } from '../request/actions'
-import { acceptQuote, rejectQuote, submitRating, markRequestPaid } from './actions'
-
+import { acceptQuote, rejectQuote, submitRating, markRequestPaid, addPickupNote } from './actions'
 import DriverProfileModal from './DriverProfileModal'
 import BankDetailsModal from './BankDetailsModal'
 import { useRouter } from 'next/navigation'
@@ -41,16 +39,75 @@ export default function TrackingCard({ req, cancelledIds, onCancelSuccess }: { r
     const isQuoteAccepted = quote?.status === 'accepted'
     const canCancel = activeStep <= STATUS_KEYS.indexOf('quote_ready') && !isQuoteAccepted
 
+    // Notes Parsing
+    const notes = req.issue_description ? req.issue_description.split('\n\n') : []
+
     // UI State
     const [isProfileOpen, setIsProfileOpen] = useState(false)
     const [isBankModalOpen, setIsBankModalOpen] = useState(false)
+    const [hasDeclined, setHasDeclined] = useState(false)
+    const [isPhoneModalOpen, setIsPhoneModalOpen] = useState(false)
+    const [isDeclineModalOpen, setIsDeclineModalOpen] = useState(false)
+    const [declineReason, setDeclineReason] = useState('')
     const [loading, setLoading] = useState(false)
     const [showMoreMenu, setShowMoreMenu] = useState(false)
     const [isPaymentExpanded, setIsPaymentExpanded] = useState(true)
 
+    // Note State
+    const [newNote, setNewNote] = useState('')
+    const [isAddingNote, setIsAddingNote] = useState(false)
+    const [noteLoading, setNoteLoading] = useState(false)
+    const [isNotesExpanded, setIsNotesExpanded] = useState(false)
+    const [isBreakdownExpanded, setIsBreakdownExpanded] = useState(false)
+
+    // Realtime Subscription
+    useEffect(() => {
+        const supabase = createClient()
+        const channel = supabase
+            .channel(`request-${req.id}`)
+            .on('postgres_changes', {
+                event: '*',
+                schema: 'public',
+                table: 'requests',
+                filter: `id=eq.${req.id}`
+            }, () => {
+                router.refresh()
+            })
+            .on('postgres_changes', {
+                event: '*',
+                schema: 'public',
+                table: 'quotes',
+                filter: `request_id=eq.${req.id}`
+            }, (payload: any) => {
+                router.refresh()
+                // Reset decline state if admin resets quote
+                if (payload.new?.status === 'pending') {
+                    setHasDeclined(false)
+                }
+            })
+            .subscribe()
+
+        return () => {
+            supabase.removeChannel(channel)
+        }
+    }, [req.id, router])
+
     if (cancelledIds?.has(req.id) || req.status === 'cancelled') return null
 
     // Handlers
+    const handleAddNote = async () => {
+        if (!newNote.trim()) return
+        setNoteLoading(true)
+        const res = await addPickupNote(req.id, newNote)
+        setNoteLoading(false)
+        if (res.success) {
+            setNewNote('')
+            setIsAddingNote(false)
+        } else {
+            alert(res.error)
+        }
+    }
+
     const handleCancel = async () => {
         if (!confirm('Are you sure? This will cancel your request.')) return
         setLoading(true)
@@ -63,23 +120,45 @@ export default function TrackingCard({ req, cancelledIds, onCancelSuccess }: { r
         }
     }
 
+    const handleConfirmDecline = async () => {
+        if (!quote) return
+        setLoading(true)
+        try {
+            setHasDeclined(true) // Optimistic
+            setIsDeclineModalOpen(false) // Close modal immediately
+
+            const res = await rejectQuote(req.id, quote.id, declineReason)
+            if (!res.success) {
+                setHasDeclined(false)
+                throw new Error(res.error)
+            }
+        } catch (error: any) {
+            console.error(error)
+            alert(error.message)
+            setHasDeclined(false)
+        } finally {
+            setLoading(false)
+        }
+    }
+
     const handleQuote = async (action: 'accept' | 'reject') => {
         if (!quote) return
+
+        if (action === 'reject') {
+            setIsDeclineModalOpen(true)
+            return
+        }
+
         if (!confirm(`Confirm ${action} quote?`)) return
 
         setLoading(true)
         try {
-            if (action === 'accept') {
-                // Open Bank Modal instead of immediate accept
-                setIsBankModalOpen(true)
-            } else {
-                const res = await rejectQuote(req.id, quote.id)
-                if (!res.success) throw new Error(res.error)
-            }
+            // Accept Flow
+            setIsBankModalOpen(true)
+            setLoading(false)
         } catch (error: any) {
             console.error(error)
-            alert(error.message || 'Failed to update quote status')
-        } finally {
+            alert(error.message)
             setLoading(false)
         }
     }
@@ -104,9 +183,10 @@ export default function TrackingCard({ req, cancelledIds, onCancelSuccess }: { r
         }
     }
 
-    const handleCall = () => {
-        if (!driver?.phone) return
-        window.location.href = `tel:${driver.phone}`
+    const handleCall = (e?: React.MouseEvent) => {
+        if (!driver?.phone_number && !driver?.phone) return
+        if (e) e.preventDefault()
+        setIsPhoneModalOpen(true)
     }
 
     const handleShare = () => {
@@ -232,9 +312,12 @@ export default function TrackingCard({ req, cancelledIds, onCancelSuccess }: { r
                 {driver ? (
                     <div className="mb-8">
                         {/* Arrival Time Badge */}
-                        <div className="inline-block bg-[#1F1F1F] text-lime-400 text-xs font-bold px-4 py-2 rounded-t-2xl border-t border-x border-[#333]" suppressHydrationWarning>
-                            Arriving by {arrivalTime}
-                        </div>
+                        {/* Arrival Time Badge - Only show if active/en-route (Hide for Quote Ready etc) */}
+                        {['pending', 'driver_assigned', 'driver_en_route'].includes(req.status) && (
+                            <div className="inline-block bg-[#1F1F1F] text-lime-400 text-xs font-bold px-4 py-2 rounded-t-2xl border-t border-x border-[#333]" suppressHydrationWarning>
+                                Arriving by {arrivalTime}
+                            </div>
+                        )}
 
                         <div className="bg-[#181818] p-5 rounded-b-2xl rounded-tr-2xl border border-[#2A2A2A] relative group/driver">
                             <div className="flex items-center gap-4">
@@ -286,14 +369,62 @@ export default function TrackingCard({ req, cancelledIds, onCancelSuccess }: { r
                 )}
 
                 {/* Pickup Notes */}
-                <div className="mb-6">
-                    <label className="text-xs text-gray-500 uppercase tracking-wider font-bold mb-2 block ml-1">Pickup Notes / Instructions</label>
-                    <div className="relative">
-                        <textarea
-                            className="w-full bg-[#181818] border border-[#333] rounded-xl p-4 text-sm text-gray-300 focus:outline-none focus:border-lime-500/50 focus:ring-1 focus:ring-lime-500/50 transition-all resize-none h-24 placeholder-gray-600"
-                            placeholder="Type any special instructions here (e.g., Gate code is 1234, call when outside)..."
-                        ></textarea>
+                <div className="mb-6 space-y-3">
+                    <div className="flex justify-between items-center">
+                        <label className="text-xs text-gray-500 uppercase tracking-wider font-bold block ml-1">Pickup Notes / Instructions</label>
+                        {!isAddingNote && (
+                            <button onClick={() => setIsAddingNote(true)} className="text-lime-500 hover:text-lime-400 text-xs flex items-center gap-1 font-medium transition-colors">
+                                <Plus className="w-3 h-3" /> Add Note
+                            </button>
+                        )}
                     </div>
+
+                    <div className="space-y-3">
+                        {(isNotesExpanded ? notes : notes.slice(0, 1)).map((note: string, i: number) => (
+                            <div key={i} className="bg-[#181818] border border-[#333] rounded-xl p-4 text-sm text-gray-300">
+                                {note}
+                            </div>
+                        ))}
+
+                        {notes.length > 2 && (
+                            <button
+                                onClick={() => setIsNotesExpanded(!isNotesExpanded)}
+                                className="text-[10px] text-gray-500 hover:text-white flex items-center gap-1 w-full justify-center py-2 transition-colors uppercase font-bold tracking-widest"
+                            >
+                                {isNotesExpanded ? (
+                                    <>Collapse Notes <ChevronDown className="w-3 h-3 rotate-180" /></>
+                                ) : (
+                                    <>View {notes.length - 2} more notes <ChevronDown className="w-3 h-3" /></>
+                                )}
+                            </button>
+                        )}
+
+                        {notes.length === 0 && !isAddingNote && (
+                            <div className="bg-[#181818] text-gray-500 border border-[#333] border-dashed rounded-xl p-4 text-sm font-light italic">
+                                No notes added to this request.
+                            </div>
+                        )}
+                    </div>
+
+                    {isAddingNote && (
+                        <div className="flex gap-2 animate-in fade-in slide-in-from-top-2">
+                            <input
+                                value={newNote}
+                                onChange={(e) => setNewNote(e.target.value)}
+                                placeholder="Type your note here..."
+                                className="flex-1 bg-[#181818] border border-[#333] rounded-xl px-4 py-3 text-sm text-white focus:outline-none focus:border-lime-500/50 transition-all placeholder-gray-600"
+                                autoFocus
+                                onKeyDown={(e) => e.key === 'Enter' && handleAddNote()}
+                            />
+                            <button
+                                onClick={handleAddNote}
+                                disabled={noteLoading || !newNote.trim()}
+                                className="bg-lime-500 hover:bg-lime-400 disabled:opacity-50 disabled:cursor-not-allowed text-black p-3 rounded-xl transition-all shadow-lg shadow-lime-900/20"
+                            >
+                                {noteLoading ? <Loader2 className="w-5 h-5 animate-spin" /> : <ChevronRight className="w-5 h-5" />}
+                            </button>
+                        </div>
+                    )}
                 </div>
 
                 {/* Payment & Cost Breakdown Section (Collapsible) */}
@@ -315,19 +446,43 @@ export default function TrackingCard({ req, cancelledIds, onCancelSuccess }: { r
                         <div className="animate-in fade-in slide-in-from-top-4 duration-300">
                             <div className="p-6 space-y-4">
                                 {/* Repair Service Item */}
-                                <div className="flex justify-between items-center text-sm">
-                                    <div className="flex items-center gap-3">
-                                        <div className={`p-2 rounded-lg ${req.status === 'quote_ready' || quote ? 'bg-lime-500/10 text-lime-500' : 'bg-gray-800 text-gray-500'}`}>
-                                            <Wrench className="w-4 h-4" />
+                                <div className="flex flex-col">
+                                    <div className="flex justify-between items-center text-sm">
+                                        <div className="flex items-center gap-3">
+                                            <div className={`p-2 rounded-lg ${req.status === 'quote_ready' || quote ? 'bg-lime-500/10 text-lime-500' : 'bg-gray-800 text-gray-500'}`}>
+                                                <Wrench className="w-4 h-4" />
+                                            </div>
+                                            <div>
+                                                <p className={`font-medium flex items-center gap-2 ${req.status === 'quote_ready' || quote ? 'text-gray-200' : 'text-gray-500'}`}>
+                                                    Vehicle Diagnosis & Repair
+                                                    {quote?.breakdown && (
+                                                        <button
+                                                            onClick={() => setIsBreakdownExpanded(!isBreakdownExpanded)}
+                                                            className="p-1 hover:bg-[#333] rounded-full transition-colors"
+                                                        >
+                                                            <ChevronDown className={`w-3 h-3 text-gray-500 transition-transform ${isBreakdownExpanded ? 'rotate-180' : ''}`} />
+                                                        </button>
+                                                    )}
+                                                </p>
+                                                <p className="text-xs text-gray-600">{req.status === 'quote_ready' || quote ? 'Quote generated' : 'Pending diagnosis...'}</p>
+                                            </div>
                                         </div>
-                                        <div>
-                                            <p className={`font-medium ${req.status === 'quote_ready' || quote ? 'text-gray-200' : 'text-gray-500'}`}>Vehicle Diagnosis & Repair</p>
-                                            <p className="text-xs text-gray-600">{req.status === 'quote_ready' || quote ? 'Quote generated' : 'Pending diagnosis...'}</p>
-                                        </div>
+                                        <span className={`font-mono font-medium ${req.status === 'quote_ready' || quote ? 'text-white' : 'text-gray-600'}`}>
+                                            {quote ? `₦${Number(quote.amount).toLocaleString()}` : '---'}
+                                        </span>
                                     </div>
-                                    <span className={`font-mono font-medium ${req.status === 'quote_ready' || quote ? 'text-white' : 'text-gray-600'}`}>
-                                        {quote ? `₦${Number(quote.amount).toLocaleString()}` : '---'}
-                                    </span>
+
+                                    {/* Breakdown Expansion */}
+                                    {isBreakdownExpanded && quote?.breakdown && (
+                                        <div className="mt-3 ml-12 pl-4 border-l border-[#2A2A2A] space-y-2 animate-in slide-in-from-top-2 fade-in">
+                                            {Object.entries(quote.breakdown).map(([key, value]: [string, any]) => (
+                                                <div key={key} className="flex justify-between text-xs text-gray-500 hover:text-gray-300 transition-colors">
+                                                    <span>{key}</span>
+                                                    <span className="font-mono">₦{Number(value).toLocaleString()}</span>
+                                                </div>
+                                            ))}
+                                        </div>
+                                    )}
                                 </div>
 
                                 {/* Towing Service Item */}
@@ -389,7 +544,17 @@ export default function TrackingCard({ req, cancelledIds, onCancelSuccess }: { r
 
                             {/* Action Footer */}
                             <div className="bg-[#1F1F1F] p-4 flex gap-3 border-t border-[#2A2A2A]">
-                                {quote && quote.status === 'pending' && req.status !== 'cancelled' ? (
+                                {quote && (quote.status === 'rejected' || hasDeclined) ? (
+                                    <div className="w-full py-3 bg-red-900/20 text-red-400 rounded-xl font-medium text-sm border border-red-900/30 flex items-center justify-center gap-2 animate-in fade-in zoom-in duration-300">
+                                        <XCircle className="w-4 h-4" />
+                                        Quote Declined - Paused until update
+                                    </div>
+                                ) : isVerifyingPayment ? (
+                                    <div className="w-full py-3 bg-blue-500/10 text-blue-400 rounded-xl font-medium text-sm border border-blue-500/20 flex items-center justify-center gap-2 animate-in fade-in">
+                                        <Loader2 className="w-4 h-4 animate-spin" />
+                                        Verifying Payment...
+                                    </div>
+                                ) : quote && quote.status === 'pending' && req.status !== 'cancelled' ? (
                                     <>
                                         <button
                                             onClick={() => handleQuote('reject')}
@@ -501,6 +666,65 @@ export default function TrackingCard({ req, cancelledIds, onCancelSuccess }: { r
                     }}
                     onPaymentConfirmed={handlePaymentSuccess}
                 />
+            )}
+
+            {/* Phone Modal */}
+            {isPhoneModalOpen && (
+                <div className="fixed inset-0 z-[100] flex items-center justify-center p-4 bg-black/60 backdrop-blur-sm animate-in fade-in" onClick={() => setIsPhoneModalOpen(false)}>
+                    <div className="bg-[#181818] border border-[#333] p-6 rounded-2xl w-full max-w-sm flex flex-col items-center gap-4 text-center shadow-2xl animate-in zoom-in-95" onClick={e => e.stopPropagation()}>
+                        <div className="w-12 h-12 rounded-full bg-lime-500/10 flex items-center justify-center text-lime-500 mb-2">
+                            <Phone className="w-6 h-6" />
+                        </div>
+                        <div>
+                            <h3 className="text-white font-bold text-lg mb-1">Call Driver</h3>
+                            <p className="text-gray-400 text-sm">Click to copy the number</p>
+                        </div>
+                        <button
+                            onClick={() => {
+                                navigator.clipboard.writeText(driver?.phone_number || driver?.phone || '')
+                                alert('Phone number copied!')
+                                setIsPhoneModalOpen(false)
+                            }}
+                            className="w-full bg-[#222] hover:bg-[#2A2A2A] border border-[#333] p-4 rounded-xl flex items-center justify-between group transition-colors"
+                        >
+                            <span className="font-mono text-xl text-white tracking-wider">{driver?.phone_number || driver?.phone}</span>
+                            <span className="text-lime-500 text-xs font-bold uppercase tracking-wider opacity-0 group-hover:opacity-100 transition-opacity">Copy</span>
+                        </button>
+                    </div>
+                </div>
+            )}
+
+            {/* Decline Reason Modal */}
+            {isDeclineModalOpen && (
+                <div className="fixed inset-0 z-[100] flex items-center justify-center p-4 bg-black/80 backdrop-blur-sm animate-in fade-in">
+                    <div className="bg-[#181818] border border-[#333] p-6 rounded-2xl w-full max-w-md shadow-2xl animate-in zoom-in-95">
+                        <h3 className="text-white font-bold text-xl mb-2">Decline Quote</h3>
+                        <p className="text-gray-400 text-sm mb-4">Please tell us why you are declining so we can improve.</p>
+
+                        <textarea
+                            value={declineReason}
+                            onChange={(e) => setDeclineReason(e.target.value)}
+                            placeholder="e.g. Price is too high, Changed my mind..."
+                            className="w-full h-32 bg-[#111] border border-[#333] rounded-xl p-4 text-white text-sm focus:outline-none focus:border-red-500/50 transition-colors mb-4 placeholder:text-gray-600 resize-none"
+                        />
+
+                        <div className="flex gap-3">
+                            <button
+                                onClick={() => setIsDeclineModalOpen(false)}
+                                className="flex-1 py-3 bg-[#222] hover:bg-[#2A2A2A] text-gray-400 rounded-xl font-medium text-sm transition-colors"
+                            >
+                                Cancel
+                            </button>
+                            <button
+                                onClick={handleConfirmDecline}
+                                disabled={!declineReason.trim()}
+                                className="flex-1 py-3 bg-red-600 hover:bg-red-500 text-white rounded-xl font-bold text-sm shadow-lg shadow-red-900/20 disabled:opacity-50 disabled:cursor-not-allowed transition-all"
+                            >
+                                Decline Quote
+                            </button>
+                        </div>
+                    </div>
+                </div>
             )}
         </div>
     )

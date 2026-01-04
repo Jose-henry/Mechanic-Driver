@@ -46,6 +46,13 @@ export function RequestForm() {
             }
         }
 
+        // Description Length Validation
+        const description = form['description'].value;
+        if (description.length < 10) {
+            setValidationError("Please provide more detail about the issue (at least 10 characters).");
+            return;
+        }
+
         setStep(2);
     };
 
@@ -118,7 +125,7 @@ export function RequestForm() {
 
                 <div className="space-y-2">
                     <label className="text-sm font-medium text-gray-700">Description of Issue</label>
-                    <textarea name="description" required rows={4} placeholder="Describe what's wrong (e.g. Engine making noise, Brakes skipping)" className="w-full p-4 bg-gray-50 border border-gray-200 rounded-xl focus:outline-none focus:ring-2 focus:ring-lime-300"></textarea>
+                    <textarea name="description" required rows={4} placeholder="Describe what's wrong (e.g. Engine making noise, Brakes skipping)" className="w-full p-4 bg-gray-50 border border-gray-200 rounded-xl focus:outline-none focus:ring-2 focus:ring-lime-300 resize-none"></textarea>
                 </div>
 
                 {validationError && (

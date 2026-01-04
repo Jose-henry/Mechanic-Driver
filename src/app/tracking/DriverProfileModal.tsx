@@ -51,11 +51,10 @@ export default function DriverProfileModal({ isOpen, onClose, driver, onCancelRe
     }
 
     const handleCall = (e: React.MouseEvent) => {
-        if (isDesktop) {
+        if (window.innerWidth >= 768) {
             e.preventDefault()
-            handleCopyPhone()
+            prompt("Copy driver phone:", driver.phone_number || '')
         }
-        // Mobile/Tablet behavior: default 'tel:' link works naturally
     }
 
     const handleChat = (e: React.MouseEvent) => {
@@ -111,7 +110,7 @@ export default function DriverProfileModal({ isOpen, onClose, driver, onCancelRe
                     {/* Floating Close Button */}
                     <button
                         onClick={onClose}
-                        className="absolute top-4 right-4 bg-black/20 hover:bg-black/40 text-white p-2 rounded-full backdrop-blur-md transition-all"
+                        className="absolute top-4 right-4 z-50 bg-black/20 hover:bg-black/40 text-white p-2 rounded-full backdrop-blur-md transition-all cursor-pointer"
                     >
                         <X className="w-5 h-5" />
                     </button>
@@ -222,15 +221,7 @@ export default function DriverProfileModal({ isOpen, onClose, driver, onCancelRe
                             <AlertTriangle className="w-5 h-5 mb-1" />
                             <span className="text-[10px] font-medium">Report</span>
                         </button>
-                        {onCancelRequest && (
-                            <button
-                                onClick={() => { onClose(); onCancelRequest(); }}
-                                className="flex flex-col items-center gap-1 p-3 rounded-xl hover:bg-red-50 text-red-500 transition-colors"
-                            >
-                                <X className="w-5 h-5 mb-1" />
-                                <span className="text-[10px] font-medium">Cancel Job</span>
-                            </button>
-                        )}
+                        {/* Cancel Job Button Removed */}
                     </div>
 
                 </div>

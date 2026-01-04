@@ -147,18 +147,14 @@ export async function cancelRequest(requestId: string) {
         return { error: 'Cannot cancel request at this stage' }
     }
 
-    const { count, error } = await supabase
+    const { error } = await supabase
         .from('requests')
-        .delete({ count: 'exact' })
+        .update({ status: 'cancelled' })
         .eq('id', requestId)
         .eq('user_id', user.id)
 
     if (error) {
         return { error: error.message }
-    }
-
-    if (count === 0) {
-        return { error: 'Failed to delete request. Check RLS policies.' }
     }
 
     return { success: true }
