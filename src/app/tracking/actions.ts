@@ -43,10 +43,10 @@ export async function rejectQuote(requestId: string, quoteId: string, reason: st
 
     if (quoteError) return { success: false, error: quoteError.message }
 
-    // 2. Halt/Pause Request
+    // 2. Pause Request (Revert to Diagnosing)
     const { error: requestError } = await supabase
         .from('requests')
-        .update({ status: 'vehicle_at_workshop' })
+        .update({ status: 'diagnosing' })
         .eq('id', requestId)
 
     if (requestError) return { success: false, error: requestError.message }

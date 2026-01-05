@@ -1,109 +1,133 @@
 # Mechanic Driver - Database Operations Manual
 
-This guide explains how to manually update the Supabase database to trigger Realtime updates in the application.
+This guide explains how to manually manage the app's data for real-time updates.
 
-## 1. Tracking Status Updates (Table: `requests`)
+## 🚨 Critical Rules (Read First)
+1.  **Strict Status List**: Only use these exact statuses for requests:
+    *   `pending` (User Waiting)
+    *   `accepted` (Mechanic Assigned)
+    *   `en_route` (Driver Driving)
+    *   `arrived` (Driver at Location)
+    *   `diagnosing` (Inspecting Vehicle)
+    *   `quote_ready` (Quote Sent to User)
+    *   `maintenance_in_progress` (Fixing Car)
+    *   `completed` (Done)
 
-The "Tracking" flow is controlled by the `status` column in the `requests` table.
+2.  **Hard Delete**: The app treats cancelled requests as "deleted". To cancel a request manually, **delete the row** from the database.
 
-### **Where to Update:**
-Table: `public.requests`
-Column: `status`
+---
 
-### **Valid Status Values (In Order):**
-1.  `pending` (Finding Mechanic)
-2.  `accepted` (Mechanic Assigned)
-3.  `en_route` (Driver En Route)
-4.  `arrived` (Driver Arrived)
-5.  `diagnosing` (Diagnosing Vehicle)
-6.  `quote_ready` (Quote Generated - Triggers Quote Card)
-7.  `maintenance_in_progress` (Repairs in Progress)
-8.  `completed` (Service Completed)
+## 🏗️ Scenario 1: Assigning a Driver
 
-### **SQL Example:**
+**When to do this:** A user has created a request (`pending`), and you have found a driver.
+
+**What needs to change:**
+1.  In `requests` table: Change `status` to `accepted`.
+2.  In `requests` table: Add the Driver's ID to `mechanic_driver_id`.
+
+**SQL Command:**
 ```sql
--- Move a request to "Driver En Route"
 UPDATE requests 
-SET status = 'en_route' 
-WHERE id = 'YOUR_REQUEST_ID';
+SET 
+  status = 'accepted', 
+  mechanic_driver_id = 'DRIVER_UUID_HERE' -- Copy ID from drivers table
+WHERE id = 'REQUEST_UUID_HERE';
 ```
 
 ---
 
-## 2. Payment & Verification (Table: `requests`)
+## 🚚 Scenario 2: Tracking Updates (The Drive)
 
-When a user clicks "I've Sent the Money", the app sets `payment_status` to `verifying`. You must manually mark it as `paid`.
+**When to do this:** As the driver moves towards the user.
 
-### **Where to Update:**
-Table: `public.requests`
-Column: `payment_status`
+**Sequence:**
+1.  **Driver Moving to User:** Status stays `accepted`. The app shows "Arriving by [Time]".
+2.  **Driver Picked Up Car:** Change status to `en_route` (Meaning: Driving TO Workshop).
+3.  **Driver Reached Workshop:** Change status to `arrived` (Meaning: Arrived AT Workshop).
+4.  **Mechanic Starts Inspection:** Change status to `diagnosing`.
 
-### **Valid Values:**
-*   `pending` (Default)
-*   `verifying` (User claims they paid)
-*   `paid` (Confirmed - Triggers "Maintenance In Progress")
-
-### **SQL Example:**
+**SQL Command:**
 ```sql
--- Confirm Payment
-UPDATE requests 
-SET payment_status = 'paid', status = 'maintenance_in_progress'
-WHERE id = 'YOUR_REQUEST_ID';
+UPDATE requests SET status = 'en_route' WHERE id = 'REQUEST_UUID_HERE';
+-- OR
+UPDATE requests SET status = 'arrived' WHERE id = 'REQUEST_UUID_HERE';
+-- OR
+UPDATE requests SET status = 'diagnosing' WHERE id = 'REQUEST_UUID_HERE';
 ```
 
 ---
 
-## 3. Creating/Updating Quotes (Table: `quotes`)
+## 💰 Scenario 3: Creating a Quote
 
-Quotes are linked to a request. You typically create one when the request is in the `diagnosing` phase.
+**When to do this:** The driver has inspected the car (`diagnosing`), and you know the cost.
 
-### **Where to Create:**
-Table: `public.quotes`
+**What needs to change:**
+1.  **Create a Quote:** Insert a new row in the `quotes` table linked to the request.
+2.  **Update Request:** Change request `status` to `quote_ready` to show the "Pay Now" card.
 
-### **Essential Fields:**
-*   `request_id`: The ID of the request (UUID).
-*   `amount`: Total price (Number).
-*   `status`: Always start with `'pending'` (User will change it to `accepted` or `rejected`).
-*   `breakdown`: JSON Object detailing the costs.
-
-### **Breakdown JSON Format:**
-The `breakdown` field supports any key-value pair where the Value is a number (price).
-
-```json
-{
-  "Brake Pads": 45000,
-  "Labor Cost": 20000,
-  "Oil Filter": 5000
-}
-```
-
-### **SQL Example (Create Quote):**
-First, ensure the request is in `diagnosing` or `quote_ready` status.
-
+**Step 1: Create Quote (SQL)**
 ```sql
--- 1. Create the Quote
 INSERT INTO quotes (request_id, amount, status, breakdown)
 VALUES (
-  'YOUR_REQUEST_ID', 
-  70000, 
-  'pending', 
-  '{"Brake Pads": 45000, "Labor": 25000}'::jsonb
+  'REQUEST_UUID_HERE', 
+  75000,                -- Total Amount
+  'pending',            -- Always start as 'pending'
+  '{"Labor": 25000, "Parts": 50000}'::jsonb -- Detailed Breakdown
 );
-
--- 2. Update Request Status to show the quote
-UPDATE requests 
-SET status = 'quote_ready' 
-WHERE id = 'YOUR_REQUEST_ID';
 ```
 
-### **SQL Example (Update Rejected Quote):**
-If a user rejects a quote, you can lower the price and reset the status to `'pending'` to let them accept it again.
-
+**Step 2: Trigger UI (SQL)**
 ```sql
-UPDATE quotes 
+UPDATE requests SET status = 'quote_ready' WHERE id = 'REQUEST_UUID_HERE';
+```
+
+---
+
+## ✅ Scenario 4: User Pays (Confirming Payment)
+
+**When to do this:** The user clicked "I've Sent the Money" (App sets `payment_status` to `verifying`), and you have received the funds.
+
+**What needs to change:**
+1.  In `requests` table: Set `payment_status` to `paid`.
+2.  In `requests` table: Set `status` to `maintenance_in_progress` (Start work).
+
+**SQL Command:**
+```sql
+UPDATE requests 
 SET 
-  amount = 60000, 
-  status = 'pending', -- Reset from 'rejected'
-  breakdown = '{"Brake Pads": 40000, "Labor": 20000}'::jsonb
-WHERE request_id = 'YOUR_REQUEST_ID';
+  payment_status = 'paid', 
+  status = 'maintenance_in_progress'
+WHERE id = 'REQUEST_UUID_HERE';
+```
+
+---
+
+## 🏁 Scenario 5: Job Done
+
+**When to do this:** The mechanic has finished all repairs.
+
+**What needs to change:**
+1.  In `requests` table: Set `status` to `completed`.
+2.  (Optional) Ensure `payment_status` is `paid`.
+
+**SQL Command:**
+```sql
+UPDATE requests 
+SET status = 'completed'
+WHERE id = 'REQUEST_UUID_HERE';
+```
+
+---
+
+## 🗑️ Scenario 6: Cancelling a Request
+
+**When to do this:** User or Admin wants to cancel (before maintenance starts).
+
+**What needs to change:**
+1.  **Strict Rule:** Do not use a "cancelled" status.
+2.  **Action:** Delete the row entirely.
+
+**SQL Command:**
+```sql
+DELETE FROM requests WHERE id = 'REQUEST_UUID_HERE';
 ```

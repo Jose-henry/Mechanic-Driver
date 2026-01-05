@@ -3,6 +3,8 @@
 import { createClient } from '@/utils/supabase/server'
 import { redirect } from 'next/navigation'
 import { requestSchema } from '@/lib/schemas'
+import { sendEmail } from '@/utils/mail'
+import { getEmailTemplate, generateKeyValue, generateSection } from '@/utils/email-template'
 
 export async function submitRequest(prevState: any, formData: FormData) {
     const supabase = await createClient()
@@ -57,12 +59,35 @@ export async function submitRequest(prevState: any, formData: FormData) {
         service_type: serviceType,
         is_towing: isTowing,
         is_car_wash: isCarWash,
-        status: 'pickup_scheduled' // Initial status as per new flow
+        status: 'pending' // Initial status: Finding Mechanic
     }).select().single()
 
     if (error) {
         return { error: error.message }
     }
+
+    // Send Email to Admins (Joseph & Cherub)
+    const emailHtml = getEmailTemplate(
+        `New Request from ${user.user_metadata?.full_name || 'User'}`,
+        `
+        ${generateSection('User Details')}
+        ${generateKeyValue('Full Name', user?.user_metadata?.full_name || 'N/A')}
+        ${generateKeyValue('Email', user?.email || 'N/A')}
+        ${generateKeyValue('User ID', user?.id || 'N/A')}
+
+        ${generateSection('Request Context')}
+        ${generateKeyValue('Request ID', request.id)}
+        ${generateKeyValue('Vehicle', `${request.year} ${request.brand} ${request.model}`)}
+        ${generateKeyValue('Location', request.pickup_location || 'N/A')}
+        `
+    )
+
+    // Fire and forget email (don't await to block redirect)
+    sendEmail({
+        to: 'joseph@mechanicdriver.com, cherub@mechanicdriver.com', // Replace with actual emails if known
+        subject: `New Request: ${request.year} ${request.brand} ${request.model}`,
+        html: emailHtml
+    })
 
     // Redirect to confirmation page (Price List) instead of direct tracking
     // Pass flags to show correct prices
@@ -102,7 +127,7 @@ export async function submitRequestJson(data: any) {
         service_type: serviceType,
         is_towing: isTowing,
         is_car_wash: isCarWash,
-        status: 'pickup_scheduled'
+        status: 'pending'
     })
 
     if (insertError) {
@@ -133,23 +158,18 @@ export async function cancelRequest(requestId: string) {
     }
 
     const nonCancellableStatuses = [
-        'vehicle_en_route_to_workshop',
-        'vehicle_at_workshop',
-        'quote_accepted',
-        'service_commenced',
-        'service_completed',
-        'vehicle_en_route_to_owner',
-        'vehicle_delivered',
-        'cancelled'
+        'maintenance_in_progress',
+        'completed'
     ]
 
     if (nonCancellableStatuses.includes(request.status)) {
         return { error: 'Cannot cancel request at this stage' }
     }
 
+    // Hard Delete
     const { error } = await supabase
         .from('requests')
-        .update({ status: 'cancelled' })
+        .delete()
         .eq('id', requestId)
         .eq('user_id', user.id)
 

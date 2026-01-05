@@ -214,9 +214,34 @@ export default function TrackingCard({ req, cancelledIds, onCancelSuccess }: { r
     const nextStatusLabel = activeStep < STATUS_KEYS.length - 1 ? STATUS_LABELS[STATUS_KEYS[activeStep + 1]] : 'Completion'
 
     // Estimated Arrival (Mock calculation)
-    const arrivalTime = req.pickup_time
-        ? new Date(new Date(`2000-01-01 ${req.pickup_time}`).getTime() + 60000 * 30).toLocaleTimeString([], { hour: 'numeric', minute: '2-digit' })
-        : 'Unknown'
+    // Estimated Arrival Calculation
+    // Logic: Start with scheduled time. If current time > scheduled, add 5 mins for every 2 mins late.
+    let arrivalTime = req.pickup_time || 'Unknown'
+    if (req.pickup_date && req.pickup_time) {
+        const scheduledStr = `${req.pickup_date}T${req.pickup_time}`
+        const scheduledDate = new Date(scheduledStr)
+        const now = new Date()
+
+        if (!isNaN(scheduledDate.getTime())) {
+            let adjustedDate = new Date(scheduledDate)
+
+            // Only apply delay logic if driver hasn't arrived/picked up yet
+            // AND we are past the scheduled time
+            // AND the status is still 'pending', 'accepted', or 'en_route'
+            if (['pending', 'accepted', 'en_route'].includes(req.status) && now > scheduledDate) {
+                const diffMs = now.getTime() - scheduledDate.getTime()
+                const diffMinutes = Math.floor(diffMs / 60000)
+
+                // For every 2 minutes late, add 5 minutes
+                const increments = Math.floor(diffMinutes / 2)
+                const addedMinutes = increments * 5
+
+                adjustedDate = new Date(scheduledDate.getTime() + (addedMinutes * 60000))
+            }
+
+            arrivalTime = adjustedDate.toLocaleTimeString([], { hour: 'numeric', minute: '2-digit' })
+        }
+    }
 
     return (
         <div className="group relative bg-[#121212] rounded-[2rem] overflow-visible border border-[#2A2A2A] hover:border-lime-500/30 transition-all duration-300 shadow-xl font-sans">
@@ -368,64 +393,66 @@ export default function TrackingCard({ req, cancelledIds, onCancelSuccess }: { r
                     </div>
                 )}
 
-                {/* Pickup Notes */}
-                <div className="mb-6 space-y-3">
-                    <div className="flex justify-between items-center">
-                        <label className="text-xs text-gray-500 uppercase tracking-wider font-bold block ml-1">Pickup Notes / Instructions</label>
-                        {!isAddingNote && (
-                            <button onClick={() => setIsAddingNote(true)} className="text-lime-500 hover:text-lime-400 text-xs flex items-center gap-1 font-medium transition-colors">
-                                <Plus className="w-3 h-3" /> Add Note
-                            </button>
-                        )}
-                    </div>
-
-                    <div className="space-y-3">
-                        {(isNotesExpanded ? notes : notes.slice(0, 1)).map((note: string, i: number) => (
-                            <div key={i} className="bg-[#181818] border border-[#333] rounded-xl p-4 text-sm text-gray-300">
-                                {note}
-                            </div>
-                        ))}
-
-                        {notes.length > 2 && (
-                            <button
-                                onClick={() => setIsNotesExpanded(!isNotesExpanded)}
-                                className="text-[10px] text-gray-500 hover:text-white flex items-center gap-1 w-full justify-center py-2 transition-colors uppercase font-bold tracking-widest"
-                            >
-                                {isNotesExpanded ? (
-                                    <>Collapse Notes <ChevronDown className="w-3 h-3 rotate-180" /></>
-                                ) : (
-                                    <>View {notes.length - 2} more notes <ChevronDown className="w-3 h-3" /></>
-                                )}
-                            </button>
-                        )}
-
-                        {notes.length === 0 && !isAddingNote && (
-                            <div className="bg-[#181818] text-gray-500 border border-[#333] border-dashed rounded-xl p-4 text-sm font-light italic">
-                                No notes added to this request.
-                            </div>
-                        )}
-                    </div>
-
-                    {isAddingNote && (
-                        <div className="flex gap-2 animate-in fade-in slide-in-from-top-2">
-                            <input
-                                value={newNote}
-                                onChange={(e) => setNewNote(e.target.value)}
-                                placeholder="Type your note here..."
-                                className="flex-1 bg-[#181818] border border-[#333] rounded-xl px-4 py-3 text-sm text-white focus:outline-none focus:border-lime-500/50 transition-all placeholder-gray-600"
-                                autoFocus
-                                onKeyDown={(e) => e.key === 'Enter' && handleAddNote()}
-                            />
-                            <button
-                                onClick={handleAddNote}
-                                disabled={noteLoading || !newNote.trim()}
-                                className="bg-lime-500 hover:bg-lime-400 disabled:opacity-50 disabled:cursor-not-allowed text-black p-3 rounded-xl transition-all shadow-lg shadow-lime-900/20"
-                            >
-                                {noteLoading ? <Loader2 className="w-5 h-5 animate-spin" /> : <ChevronRight className="w-5 h-5" />}
-                            </button>
+                {/* Pickup Notes - Hide if completed */}
+                {req.status !== 'completed' && (
+                    <div className="mb-6 space-y-3">
+                        <div className="flex justify-between items-center">
+                            <label className="text-xs text-gray-500 uppercase tracking-wider font-bold block ml-1">Pickup Notes / Instructions</label>
+                            {!isAddingNote && (
+                                <button onClick={() => setIsAddingNote(true)} className="text-lime-500 hover:text-lime-400 text-xs flex items-center gap-1 font-medium transition-colors">
+                                    <Plus className="w-3 h-3" /> Add Note
+                                </button>
+                            )}
                         </div>
-                    )}
-                </div>
+
+                        <div className="space-y-3">
+                            {(isNotesExpanded ? notes : notes.slice(0, 1)).map((note: string, i: number) => (
+                                <div key={i} className="bg-[#181818] border border-[#333] rounded-xl p-4 text-sm text-gray-300">
+                                    {note}
+                                </div>
+                            ))}
+
+                            {notes.length > 2 && (
+                                <button
+                                    onClick={() => setIsNotesExpanded(!isNotesExpanded)}
+                                    className="text-[10px] text-gray-500 hover:text-white flex items-center gap-1 w-full justify-center py-2 transition-colors uppercase font-bold tracking-widest"
+                                >
+                                    {isNotesExpanded ? (
+                                        <>Collapse Notes <ChevronDown className="w-3 h-3 rotate-180" /></>
+                                    ) : (
+                                        <>View {notes.length - 2} more notes <ChevronDown className="w-3 h-3" /></>
+                                    )}
+                                </button>
+                            )}
+
+                            {notes.length === 0 && !isAddingNote && (
+                                <div className="bg-[#181818] text-gray-500 border border-[#333] border-dashed rounded-xl p-4 text-sm font-light italic">
+                                    No notes added to this request.
+                                </div>
+                            )}
+                        </div>
+
+                        {isAddingNote && (
+                            <div className="flex gap-2 animate-in fade-in slide-in-from-top-2">
+                                <input
+                                    value={newNote}
+                                    onChange={(e) => setNewNote(e.target.value)}
+                                    placeholder="Type your note here..."
+                                    className="flex-1 bg-[#181818] border border-[#333] rounded-xl px-4 py-3 text-sm text-white focus:outline-none focus:border-lime-500/50 transition-all placeholder-gray-600"
+                                    autoFocus
+                                    onKeyDown={(e) => e.key === 'Enter' && handleAddNote()}
+                                />
+                                <button
+                                    onClick={handleAddNote}
+                                    disabled={noteLoading || !newNote.trim()}
+                                    className="bg-lime-500 hover:bg-lime-400 disabled:opacity-50 disabled:cursor-not-allowed text-black p-3 rounded-xl transition-all shadow-lg shadow-lime-900/20"
+                                >
+                                    {noteLoading ? <Loader2 className="w-5 h-5 animate-spin" /> : <ChevronRight className="w-5 h-5" />}
+                                </button>
+                            </div>
+                        )}
+                    </div>
+                )}
 
                 {/* Payment & Cost Breakdown Section (Collapsible) */}
                 <div className="bg-[#181818] rounded-3xl border border-[#2A2A2A] overflow-hidden mb-6 transition-all duration-300">
@@ -589,28 +616,30 @@ export default function TrackingCard({ req, cancelledIds, onCancelSuccess }: { r
                     )}
                 </div>
 
-                {/* Status Alerts (Verifying / Paid) */}
-                <div className="space-y-3">
-                    {isVerifyingPayment && (
-                        <div className="bg-blue-500/10 rounded-xl p-4 border border-blue-500/20 flex items-center gap-3 animate-in fade-in">
-                            <Loader2 className="w-5 h-5 text-blue-400 animate-spin" />
-                            <div>
-                                <h4 className="font-bold text-sm text-blue-400">Verifying Payment</h4>
-                                <p className="text-xs text-blue-400/60">We are confirming your transaction...</p>
+                {/* Status Alerts (Verifying / Paid) - Hide if completed */}
+                {req.status !== 'completed' && (
+                    <div className="space-y-3">
+                        {isVerifyingPayment && (
+                            <div className="bg-blue-500/10 rounded-xl p-4 border border-blue-500/20 flex items-center gap-3 animate-in fade-in">
+                                <Loader2 className="w-5 h-5 text-blue-400 animate-spin" />
+                                <div>
+                                    <h4 className="font-bold text-sm text-blue-400">Verifying Payment</h4>
+                                    <p className="text-xs text-blue-400/60">We are confirming your transaction...</p>
+                                </div>
                             </div>
-                        </div>
-                    )}
+                        )}
 
-                    {isPaid && (
-                        <div className="bg-green-500/10 rounded-xl p-4 border border-green-500/20 flex items-center gap-3 animate-in fade-in">
-                            <CheckCircle className="w-5 h-5 text-green-400" />
-                            <div>
-                                <h4 className="font-bold text-sm text-green-400">Payment Confirmed</h4>
-                                <p className="text-xs text-green-400/60">Technician has commenced repairs.</p>
+                        {isPaid && (
+                            <div className="bg-green-500/10 rounded-xl p-4 border border-green-500/20 flex items-center gap-3 animate-in fade-in">
+                                <CheckCircle className="w-5 h-5 text-green-400" />
+                                <div>
+                                    <h4 className="font-bold text-sm text-green-400">Payment Confirmed</h4>
+                                    <p className="text-xs text-green-400/60">Technician has commenced repairs.</p>
+                                </div>
                             </div>
-                        </div>
-                    )}
-                </div>
+                        )}
+                    </div>
+                )}
 
                 {/* More Actions Toggle */}
                 <div className="mt-8 flex justify-center">
