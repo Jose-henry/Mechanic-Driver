@@ -7,7 +7,7 @@ This guide explains how to manually manage the app's data for real-time updates.
     *   `pending` (User Waiting)
     *   `accepted` (Mechanic Assigned)
     *   `en_route` (Driver Driving)
-    *   `arrived` (Driver at Location)
+    *   `arrived` (Car At Garage)
     *   `diagnosing` (Inspecting Vehicle)
     *   `quote_ready` (Quote Sent to User)
     *   `maintenance_in_progress` (Fixing Car)
