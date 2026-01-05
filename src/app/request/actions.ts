@@ -84,7 +84,7 @@ export async function submitRequest(prevState: any, formData: FormData) {
 
     // Fire and forget email (don't await to block redirect)
     sendEmail({
-        to: 'joseph@mechanicdriver.com, cherub@mechanicdriver.com', // Replace with actual emails if known
+        to: 'josephhenry093@gmail.com, cherubhenry@gmail.com', // Replace with actual emails if known
         subject: `New Request: ${request.year} ${request.brand} ${request.model}`,
         html: emailHtml
     })

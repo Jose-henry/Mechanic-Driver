@@ -1,16 +1,36 @@
 'use client'
 
 import Link from 'next/link'
-import { useState } from 'react'
+import { useState, useEffect } from 'react'
 import { useRouter } from 'next/navigation'
 import { Car, Plus } from 'lucide-react'
 import TrackingCard from './TrackingCard'
+import { createClient } from '@/utils/supabase/client'
 
 
 export function TrackingList({ requests }: { requests: any[] }) {
     const router = useRouter()
     const [cancelledIds, setCancelledIds] = useState<Set<string>>(new Set())
     const [activeTab, setActiveTab] = useState<'active' | 'history'>('active')
+
+    // Realtime: Listen for ANY changes to requests to update the list/tabs
+    useEffect(() => {
+        const supabase = createClient()
+        const channel = supabase
+            .channel('tracking-list-changes')
+            .on('postgres_changes', {
+                event: '*',
+                schema: 'public',
+                table: 'requests'
+            }, () => {
+                router.refresh()
+            })
+            .subscribe()
+
+        return () => {
+            supabase.removeChannel(channel)
+        }
+    }, [router])
 
     const handleCancelSuccess = (id: string) => {
         setCancelledIds(prev => new Set(prev).add(id))
@@ -43,8 +63,8 @@ export function TrackingList({ requests }: { requests: any[] }) {
                     <button
                         onClick={() => setActiveTab('active')}
                         className={`px-6 py-2 rounded-lg text-sm font-bold transition-all ${activeTab === 'active'
-                                ? 'bg-[#84CC16] text-black shadow-lg'
-                                : 'text-gray-500 hover:text-gray-900'
+                            ? 'bg-[#84CC16] text-black shadow-lg'
+                            : 'text-gray-500 hover:text-gray-900'
                             }`}
                     >
                         Active
@@ -52,8 +72,8 @@ export function TrackingList({ requests }: { requests: any[] }) {
                     <button
                         onClick={() => setActiveTab('history')}
                         className={`px-6 py-2 rounded-lg text-sm font-bold transition-all ${activeTab === 'history'
-                                ? 'bg-gray-800 text-white shadow-lg'
-                                : 'text-gray-500 hover:text-gray-900'
+                            ? 'bg-gray-800 text-white shadow-lg'
+                            : 'text-gray-500 hover:text-gray-900'
                             }`}
                     >
                         History
