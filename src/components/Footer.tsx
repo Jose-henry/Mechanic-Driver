@@ -21,16 +21,13 @@ export function Footer() {
                     <Link href="#" className="hover:text-white transition-colors">
                         Terms
                     </Link>
-                    <Link href="#" className="hover:text-white transition-colors">
-                        Drivers
-                    </Link>
-                    <Link href="#" className="hover:text-white transition-colors">
+                    <a href="mailto:cherubhenry@gmail.com" className="hover:text-white transition-colors">
                         Contact
-                    </Link>
+                    </a>
                 </div>
 
                 <div className="text-sm text-gray-500">
-                    © 2024 Mechanic Driver Inc.
+                    © {new Date().getFullYear()} Mechanic Driver. All rights reserved.
                 </div>
             </div>
         </footer>

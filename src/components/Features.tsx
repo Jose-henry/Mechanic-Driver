@@ -1,4 +1,5 @@
 import { CreditCard, ShieldCheck, ArrowRight } from "lucide-react";
+import Link from "next/link";
 
 export function Features() {
     return (
@@ -129,9 +130,9 @@ export function Features() {
                             Describe the problem or select from common issues like "Shaking",
                             "Noise", or "Fire".
                         </p>
-                        <button className="text-lime-700 font-medium flex items-center gap-2 hover:gap-3 transition-all cursor-pointer">
+                        <Link href="/request" className="text-lime-700 font-medium flex items-center gap-2 hover:gap-3 transition-all cursor-pointer">
                             View Reporting Flow <ArrowRight className="w-4 h-4" />
-                        </button>
+                        </Link>
                     </div>
                     <div className="w-full md:w-64 bg-gray-50 rounded-2xl p-4 border border-gray-100 transform rotate-2">
                         <div className="space-y-2">
