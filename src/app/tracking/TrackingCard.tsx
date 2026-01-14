@@ -18,9 +18,9 @@ const STATUS_KEYS = [
 ]
 
 const STATUS_LABELS: Record<string, string> = {
-    pending: 'Finding Mechanic',
-    accepted: 'Mechanic Assigned',
-    en_route: 'Driver En Route',
+    pending: 'Finding Mechanic Driver',
+    accepted: 'Mechanic Driver Assigned',
+    en_route: 'Mechanic Driver En Route',
     arrived: 'Car At Garage',
     diagnosing: 'Diagnosing Vehicle',
     quote_ready: 'Quote Ready',
