@@ -44,7 +44,7 @@ export function FAQ() {
 
                 <details className="group bg-gray-50 rounded-2xl p-6 [&_summary::-webkit-details-marker]:hidden cursor-pointer transition-colors hover:bg-gray-100">
                     <summary className="flex items-center justify-between text-lg font-medium text-gray-900">
-                        Can I track the driver in real-time?
+                        Can I track the mechanic driver in real-time?
                         <span className="bg-white rounded-full p-1 border border-gray-200 ml-4">
                             <Plus className="w-4 h-4 text-gray-500 group-open:hidden" />
                             <Minus className="w-4 h-4 text-gray-500 hidden group-open:block" />

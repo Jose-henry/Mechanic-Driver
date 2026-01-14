@@ -22,9 +22,9 @@ export default function BankDetailsModal({ isOpen, onClose, requestId, details, 
 
     // Mock Bank Details
     const bankDetails = {
-        bankName: "Guaranty Trust Bank (GTB)",
-        accountNumber: "0123456789",
-        accountName: "Mechanic Driver Inc."
+        bankName: "Moniepoint MFB",
+        accountNumber: "6557348342",
+        accountName: "Mechanic Driver Ltd."
     }
 
     const handleCopy = (text: string, field: string) => {

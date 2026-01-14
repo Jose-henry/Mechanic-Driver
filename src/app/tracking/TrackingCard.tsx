@@ -190,15 +190,27 @@ export default function TrackingCard({ req, cancelledIds, onCancelSuccess }: { r
     }
 
     const handleShare = () => {
+        const shareText = `
+🚗 *Track my Application*
+*ID:* ${req.id}
+*Vehicle:* ${req.year || req.vehicle_year || ''} ${req.brand || req.vehicle_make} ${req.model || req.vehicle_model}
+*Plate:* ${req.license_plate || req.vehicle_number || 'N/A'}
+*Status:* ${STATUS_LABELS[req.status] || req.status}
+*Duration:* ${arrivalTime}
+*Location:* ${req.pickup_location}
+
+Follow real-time status here: ${window.location.href}
+        `.trim()
+
         if (navigator.share) {
             navigator.share({
-                title: 'Mechanic Driver Job',
-                text: `Tracking my car repair: ${req.brand} ${req.model}. Status: ${STATUS_LABELS[req.status]}`,
+                title: `Mechanic Tracker - ${req.brand} ${req.model}`,
+                text: shareText,
                 url: window.location.href
             }).catch(console.error)
         } else {
-            navigator.clipboard.writeText(window.location.href)
-            alert('Link copied!')
+            navigator.clipboard.writeText(shareText)
+            alert('Full tracking details copied to clipboard!')
         }
         setShowMoreMenu(false)
     }
@@ -366,7 +378,7 @@ export default function TrackingCard({ req, cancelledIds, onCancelSuccess }: { r
                                     <h4 className="text-white font-bold text-lg mb-0.5">{driver.name}</h4>
                                     <div className="flex items-center gap-2 text-xs">
                                         <span className="text-gray-400 flex items-center gap-1">
-                                            {driver.rating?.toFixed(1) || '5.0'} <Star className="w-3 h-3 text-yellow-500 fill-yellow-500" />
+                                            {driver.ratings ? driver.ratings.toFixed(1) : '5.0'} <Star className="w-3 h-3 text-yellow-500 fill-yellow-500" />
                                         </span>
                                         <span className="w-1 h-1 rounded-full bg-gray-600"></span>
                                         <span className="text-lime-500 font-medium">Top Rated & Verified</span>
@@ -412,7 +424,7 @@ export default function TrackingCard({ req, cancelledIds, onCancelSuccess }: { r
                                 </div>
                             ))}
 
-                            {notes.length > 2 && (
+                            {notes.length > 1 && (
                                 <button
                                     onClick={() => setIsNotesExpanded(!isNotesExpanded)}
                                     className="text-[10px] text-gray-500 hover:text-white flex items-center gap-1 w-full justify-center py-2 transition-colors uppercase font-bold tracking-widest"
@@ -420,7 +432,7 @@ export default function TrackingCard({ req, cancelledIds, onCancelSuccess }: { r
                                     {isNotesExpanded ? (
                                         <>Collapse Notes <ChevronDown className="w-3 h-3 rotate-180" /></>
                                     ) : (
-                                        <>View {notes.length - 2} more notes <ChevronDown className="w-3 h-3" /></>
+                                        <>View {notes.length - 1} more notes <ChevronDown className="w-3 h-3" /></>
                                     )}
                                 </button>
                             )}
@@ -516,16 +528,16 @@ export default function TrackingCard({ req, cancelledIds, onCancelSuccess }: { r
                                 {req.is_towing && (
                                     <div className="flex justify-between items-center text-sm">
                                         <div className="flex items-center gap-3">
-                                            <div className={`p-2 rounded-lg ${req.status === 'quote_ready' || quote ? 'bg-blue-500/10 text-blue-500' : 'bg-gray-800 text-gray-500'}`}>
+                                            <div className="p-2 rounded-lg bg-blue-500/10 text-blue-500">
                                                 <Car className="w-4 h-4" />
                                             </div>
                                             <div>
-                                                <p className={`font-medium ${req.status === 'quote_ready' || quote ? 'text-gray-200' : 'text-gray-500'}`}>Towing Service</p>
+                                                <p className="font-medium text-gray-200">Towing Service</p>
                                                 <p className="text-xs text-gray-600">Flat rate intracity</p>
                                             </div>
                                         </div>
-                                        <span className={`font-mono font-medium ${req.status === 'quote_ready' || quote ? 'text-white' : 'text-gray-600'}`}>
-                                            {quote ? '₦50,000' : '---'}
+                                        <span className="font-mono font-medium text-white">
+                                            ₦50,000
                                         </span>
                                     </div>
                                 )}
@@ -534,16 +546,16 @@ export default function TrackingCard({ req, cancelledIds, onCancelSuccess }: { r
                                 {req.is_car_wash && (
                                     <div className="flex justify-between items-center text-sm">
                                         <div className="flex items-center gap-3">
-                                            <div className={`p-2 rounded-lg ${req.status === 'quote_ready' || quote ? 'bg-cyan-500/10 text-cyan-500' : 'bg-gray-800 text-gray-500'}`}>
+                                            <div className="p-2 rounded-lg bg-cyan-500/10 text-cyan-500">
                                                 <div className="w-4 h-4">💧</div>
                                             </div>
                                             <div>
-                                                <p className={`font-medium ${req.status === 'quote_ready' || quote ? 'text-gray-200' : 'text-gray-500'}`}>Premium Car Wash</p>
+                                                <p className="font-medium text-gray-200">Premium Car Wash</p>
                                                 <p className="text-xs text-gray-600">Detailed cleaning</p>
                                             </div>
                                         </div>
-                                        <span className={`font-mono font-medium ${req.status === 'quote_ready' || quote ? 'text-white' : 'text-gray-600'}`}>
-                                            {quote ? '₦3,000' : '---'}
+                                        <span className="font-mono font-medium text-white">
+                                            ₦3,000
                                         </span>
                                     </div>
                                 )}
@@ -563,7 +575,13 @@ export default function TrackingCard({ req, cancelledIds, onCancelSuccess }: { r
                                                 <p className="text-[10px] text-lime-500 mt-1">Ready for payment</p>
                                             </>
                                         ) : (
-                                            <span className="text-xl font-bold text-gray-600 tracking-tight">Pending...</span>
+                                            <>
+                                                <span className="text-xl font-bold text-gray-400 tracking-tight">
+                                                    ₦{((req.is_towing ? 50000 : 0) + (req.is_car_wash ? 3000 : 0)).toLocaleString()}
+                                                    <span className="text-gray-600 text-base font-medium ml-1"> + Repair</span>
+                                                </span>
+                                                <p className="text-[10px] text-gray-500 mt-1">Repair cost pending diagnosis...</p>
+                                            </>
                                         )}
                                     </div>
                                 </div>
@@ -582,22 +600,30 @@ export default function TrackingCard({ req, cancelledIds, onCancelSuccess }: { r
                                         Verifying Payment...
                                     </div>
                                 ) : quote && quote.status === 'pending' && req.status !== 'cancelled' && req.payment_status !== 'paid' ? (
-                                    <>
-                                        <button
-                                            onClick={() => handleQuote('reject')}
-                                            disabled={loading}
-                                            className="flex-1 py-3 bg-[#2A2A2A] hover:bg-[#333] text-gray-300 rounded-xl font-medium text-sm transition-colors"
-                                        >
-                                            Decline Quote
-                                        </button>
-                                        <button
-                                            onClick={() => handleQuote('accept')}
-                                            disabled={loading}
-                                            className="flex-[2] py-3 bg-lime-500 hover:bg-lime-400 text-black rounded-xl font-bold text-sm shadow-[0_4px_15px_rgba(132,204,22,0.3)] transition-all flex items-center justify-center gap-2"
-                                        >
-                                            {loading ? <Loader2 className="w-4 h-4 animate-spin" /> : 'Pay Now'}
-                                        </button>
-                                    </>
+                                    <div className="w-full space-y-4">
+                                        <div className="bg-red-500/10 border border-red-500/20 rounded-xl p-3 flex items-start gap-3">
+                                            <AlertTriangle className="w-4 h-4 text-red-500 flex-shrink-0 mt-0.5" />
+                                            <p className="text-xs text-red-400/90 leading-relaxed font-medium">
+                                                <strong>Refund rules:</strong> No refunds after Maintenance service begins.
+                                            </p>
+                                        </div>
+                                        <div className="flex gap-3">
+                                            <button
+                                                onClick={() => handleQuote('reject')}
+                                                disabled={loading}
+                                                className="flex-1 py-3 bg-[#2A2A2A] hover:bg-[#333] text-gray-300 rounded-xl font-medium text-sm transition-colors"
+                                            >
+                                                Decline Quote
+                                            </button>
+                                            <button
+                                                onClick={() => handleQuote('accept')}
+                                                disabled={loading}
+                                                className="flex-[2] py-3 bg-lime-500 hover:bg-lime-400 text-black rounded-xl font-bold text-sm shadow-[0_4px_15px_rgba(132,204,22,0.3)] transition-all flex items-center justify-center gap-2"
+                                            >
+                                                {loading ? <Loader2 className="w-4 h-4 animate-spin" /> : 'Pay Now'}
+                                            </button>
+                                        </div>
+                                    </div>
                                 ) : needsPayment ? (
                                     <button
                                         onClick={() => setIsBankModalOpen(true)}
@@ -658,10 +684,13 @@ export default function TrackingCard({ req, cancelledIds, onCancelSuccess }: { r
                             <Share2 className="w-4 h-4" />
                             Share Details
                         </button>
-                        <button className="bg-[#191919] hover:bg-[#222] text-gray-400 hover:text-white p-3 rounded-xl text-xs flex flex-col items-center gap-2 transition-colors border border-[#333]">
+                        <a
+                            href={`mailto:${process.env.SUPPORT_EMAIL || 'support@mechanicdriver.com'}?subject=Issue with Request ${req.id}&body=Hi Support, I have an issue with my request (ID: ${req.id})...`}
+                            className="bg-[#191919] hover:bg-[#222] text-gray-400 hover:text-white p-3 rounded-xl text-xs flex flex-col items-center gap-2 transition-colors border border-[#333]"
+                        >
                             <Flag className="w-4 h-4" />
                             Report Issue
-                        </button>
+                        </a>
 
                         {canCancel && (
                             <button onClick={handleCancel} disabled={loading} className="bg-[#1F1212] hover:bg-red-950/20 text-red-400 p-3 rounded-xl text-xs flex flex-col items-center gap-2 transition-colors border border-red-900/20">

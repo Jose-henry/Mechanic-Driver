@@ -4,18 +4,28 @@ import React, { useState, useEffect } from 'react'
 import { createPortal } from 'react-dom'
 import { X, Phone, MessageCircle, Star, MapPin, Share2, AlertTriangle, User, CheckCircle } from 'lucide-react'
 
+interface Review {
+    id: string
+    rating: number
+    comment: string
+    reviewer_name: string
+    created_at: string
+}
+
 interface Driver {
     id: string
     full_name: string
     avatar_url: string | null
     vehicle?: string
-    rating_label?: string
+    ratings?: number
     is_verified?: boolean
     phone_number?: string
-    // Extended properties (mocked if not in DB schema yet)
-    store_location?: string
+    location?: string
     jobs_completed?: number
     bio?: string
+    reviews?: Review[]
+    // Fallback for old UI prop 'name' if needed, but we should standardize on 'full_name'
+    name?: string
 }
 
 interface DriverProfileModalProps {
@@ -29,6 +39,9 @@ export default function DriverProfileModal({ isOpen, onClose, driver, onCancelRe
     const [isCopied, setIsCopied] = useState(false)
     const [isDesktop, setIsDesktop] = useState(false)
     const [mounted, setMounted] = useState(false)
+
+    // Ensure we have a display name
+    const displayName = driver.full_name || driver.name || 'Driver'
 
     useEffect(() => {
         setMounted(true)
@@ -67,16 +80,28 @@ export default function DriverProfileModal({ isOpen, onClose, driver, onCancelRe
     }
 
     const handleShare = () => {
-        const text = `Check out this mechanic driver: ${driver.full_name}. Rated ${driver.rating_label || '5.0'} stars!`
+        const text = `
+🔧 *Mechanic Driver Profile*
+*Name:* ${displayName}
+*Rating:* ${driver.ratings ? driver.ratings.toFixed(1) : '5.0'} ⭐
+*Jobs Completed:* ${driver.jobs_completed || '0'}
+*Location:* ${driver.location || 'Lagos, Nigeria'}
+*Verified:* ${driver.is_verified ? 'Yes' : 'No'}
+
+*About:* ${driver.bio || 'Certified mechanic driver.'}
+
+View Profile: ${window.location.href}
+        `.trim()
+
         if (navigator.share) {
             navigator.share({
-                title: 'Mechanic Driver',
+                title: `Mechanic Driver - ${displayName}`,
                 text: text,
                 url: window.location.href
             }).catch(console.error)
         } else {
             // Fallback for desktop share
-            navigator.clipboard.writeText(text + ' ' + window.location.href)
+            navigator.clipboard.writeText(text)
             alert('Driver details copied to clipboard!')
         }
     }
@@ -97,7 +122,7 @@ export default function DriverProfileModal({ isOpen, onClose, driver, onCancelRe
                     {driver.avatar_url ? (
                         <img
                             src={driver.avatar_url}
-                            alt={driver.full_name}
+                            alt={displayName}
                             className="w-full h-full object-cover"
                         />
                     ) : (
@@ -121,15 +146,15 @@ export default function DriverProfileModal({ isOpen, onClose, driver, onCancelRe
                     {/* Name & Badge overlaid on bottom */}
                     <div className="absolute bottom-0 left-0 right-0 p-6 text-white">
                         <div className="flex items-center gap-2 mb-1">
-                            <h2 className="text-3xl font-bold">{driver.full_name}</h2>
+                            <h2 className="text-3xl font-bold">{displayName}</h2>
                             {driver.is_verified && (
                                 <span className="bg-blue-500 text-white text-[10px] px-2 py-0.5 rounded-full font-bold uppercase tracking-wider shadow-sm flex items-center gap-1">
-                                    <Star className="w-3 h-3 fill-white" /> Verified Legacy
+                                    <Star className="w-3 h-3 fill-white" /> Verified
                                 </span>
                             )}
                         </div>
                         <p className="text-gray-300 text-sm flex items-center gap-1">
-                            <MapPin className="w-3 h-3" /> {driver.store_location || 'Lagos, Nigeria'}
+                            <MapPin className="w-3 h-3" /> {driver.location || 'Lagos, Nigeria'}
                         </p>
                     </div>
                 </div>
@@ -140,13 +165,13 @@ export default function DriverProfileModal({ isOpen, onClose, driver, onCancelRe
                     <div className="grid grid-cols-2 gap-4 mb-6">
                         <div className="bg-gray-50 p-4 rounded-2xl border border-gray-100 text-center">
                             <div className="text-2xl font-bold text-gray-900 flex items-center justify-center gap-1">
-                                {driver.rating_label || '4.9'} <Star className="w-4 h-4 text-yellow-500 fill-yellow-500" />
+                                {driver.ratings ? driver.ratings.toFixed(1) : '5.0'} <Star className="w-4 h-4 text-yellow-500 fill-yellow-500" />
                             </div>
                             <p className="text-xs text-gray-500 uppercase tracking-wide mt-1">Rating</p>
                         </div>
                         <div className="bg-gray-50 p-4 rounded-2xl border border-gray-100 text-center">
                             <div className="text-2xl font-bold text-gray-900">
-                                {driver.jobs_completed || '120+'}
+                                {driver.jobs_completed || '0'}
                             </div>
                             <p className="text-xs text-gray-500 uppercase tracking-wide mt-1">Jobs Done</p>
                         </div>
@@ -156,7 +181,7 @@ export default function DriverProfileModal({ isOpen, onClose, driver, onCancelRe
                     <div className="mb-6">
                         <h3 className="text-sm font-bold text-gray-900 mb-2 uppercase tracking-wide">About Driver</h3>
                         <p className="text-sm text-gray-600 leading-relaxed">
-                            {driver.bio || `${driver.full_name} is a certified mechanic driver with over 5 years of experience handling luxury and standard vehicles. Highly recommended for timely pickups and professional service.`}
+                            {driver.bio || `No bio available for ${displayName}.`}
                         </p>
                     </div>
 
@@ -164,17 +189,27 @@ export default function DriverProfileModal({ isOpen, onClose, driver, onCancelRe
                     <div className="mb-8">
                         <div className="flex items-center justify-between mb-3">
                             <h3 className="text-sm font-bold text-gray-900 uppercase tracking-wide">Recent Reviews</h3>
-                            <button className="text-lime-600 text-xs font-medium hover:underline">View All</button>
                         </div>
 
                         <div className="space-y-3">
-                            <div className="bg-gray-50 p-3 rounded-xl border border-gray-100">
-                                <div className="flex gap-1 mb-1">
-                                    {[1, 2, 3, 4, 5].map(i => <Star key={i} className="w-3 h-3 text-yellow-400 fill-yellow-400" />)}
-                                </div>
-                                <p className="text-xs text-gray-700 italic">"Fast arrival and very polite. Car was handled with care!"</p>
-                                <p className="text-xs text-gray-400 mt-1 text-right">- Verified Customer</p>
-                            </div>
+                            {driver.reviews && driver.reviews.length > 0 ? (
+                                driver.reviews.slice(0, 3).map((review) => (
+                                    <div key={review.id} className="bg-gray-50 p-3 rounded-xl border border-gray-100">
+                                        <div className="flex gap-1 mb-1">
+                                            {[...Array(5)].map((_, i) => (
+                                                <Star
+                                                    key={i}
+                                                    className={`w-3 h-3 ${i < review.rating ? 'text-yellow-400 fill-yellow-400' : 'text-gray-300'}`}
+                                                />
+                                            ))}
+                                        </div>
+                                        <p className="text-xs text-gray-700 italic">"{review.comment}"</p>
+                                        <p className="text-xs text-gray-400 mt-1 text-right">- {review.reviewer_name}</p>
+                                    </div>
+                                ))
+                            ) : (
+                                <p className="text-xs text-gray-500 italic">No reviews yet.</p>
+                            )}
                         </div>
                     </div>
 
@@ -217,10 +252,13 @@ export default function DriverProfileModal({ isOpen, onClose, driver, onCancelRe
                             <Share2 className="w-5 h-5 mb-1" />
                             <span className="text-[10px] font-medium">Share</span>
                         </button>
-                        <button className="flex flex-col items-center gap-1 p-3 rounded-xl hover:bg-gray-50 text-gray-600 transition-colors">
+                        <a
+                            href={`mailto:${process.env.SUPPORT_EMAIL || 'support@mechanicdriver.com'}?subject=Report Driver ${displayName}&body=Reporting Driver ID: ${driver.id || 'N/A'}...`}
+                            className="flex flex-col items-center gap-1 p-3 rounded-xl hover:bg-gray-50 text-gray-600 transition-colors"
+                        >
                             <AlertTriangle className="w-5 h-5 mb-1" />
                             <span className="text-[10px] font-medium">Report</span>
-                        </button>
+                        </a>
                         {/* Cancel Job Button Removed */}
                     </div>
 

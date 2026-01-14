@@ -55,7 +55,7 @@ export function Steps() {
                             3. Pickup
                         </h3>
                         <p className="text-gray-500 leading-relaxed">
-                            The driver picks up your car. Track the location live as it moves to
+                            The mechanic driver picks up your car. Track the location live as it moves to
                             the mechanic.
                         </p>
                     </div>

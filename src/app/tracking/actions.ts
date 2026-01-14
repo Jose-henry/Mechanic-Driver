@@ -74,7 +74,7 @@ export async function rejectQuote(requestId: string, quoteId: string, reason: st
     `
 
     await sendEmail({
-        to: 'cherubhenry@gmail.com, josephhenry093@gmail.com',
+        to: process.env.SUPPORT_EMAIL || 'support@mechanicdriver.com',
         subject: `Start Request: Quote Declined - ${req?.brand} ${req?.model}`,
         html: getEmailTemplate('Quote Declined', emailContent)
     })
@@ -144,7 +144,7 @@ export async function markRequestPaid(requestId: string, details: any) {
     `
 
     await sendEmail({
-        to: 'cherubhenry@gmail.com, josephhenry093@gmail.com',
+        to: process.env.SUPPORT_EMAIL || 'support@mechanicdriver.com',
         subject: `PAYMENT VERIFICATION: ₦${details.amount} - Request #${requestId.slice(0, 6)}`,
         html: getEmailTemplate('Payment Verification', emailContent)
     })
@@ -226,7 +226,7 @@ export async function addPickupNote(requestId: string, note: string) {
     `
 
     await sendEmail({
-        to: 'cherubhenry@gmail.com, josephhenry093@gmail.com',
+        to: process.env.SUPPORT_EMAIL || 'support@mechanicdriver.com',
         subject: `NEW NOTE: Request #${requestId.slice(0, 6)}`,
         html: getEmailTemplate('New Pickup Note', emailContent)
     })
@@ -249,15 +249,30 @@ export async function generateMockRequest() {
         // Create a mock driver if none exist
         const { data: newDriver } = await supabase.from('drivers').insert({
             name: 'Abdul Soludo',
+            full_name: 'Abdul Soludo',
             is_verified: true,
-            rating_label: 'Expert Mechanic',
+            ratings: 5.0,
             phone: '08012345678',
-            avatar_url: 'https://images.unsplash.com/photo-1633332755192-727a05c4013d?w=400&h=400&fit=crop'
+            avatar_url: 'https://images.unsplash.com/photo-1633332755192-727a05c4013d?w=400&h=400&fit=crop',
+            bio: 'Expert mechanic with over 10 years of experience specializing in Japanese and German cars.',
+            jobs_completed: 142,
+            location: 'Ikeja, Lagos'
         }).select().single()
         driverId = newDriver?.id
     }
 
     if (!driverId) return { error: 'Failed to assign driver' }
+
+    // 1b. Mock Reviews (Check if exist, else create)
+    const { data: existingReviews } = await supabase.from('reviews').select('id').eq('driver_id', driverId)
+    if (!existingReviews || existingReviews.length === 0) {
+        const reviews = [
+            { driver_id: driverId, rating: 5, comment: 'Great service, very professional!', reviewer_name: 'Chinedu O.' },
+            { driver_id: driverId, rating: 4, comment: 'Arrived a bit late but did good work.', reviewer_name: 'Sarah J.' },
+            { driver_id: driverId, rating: 5, comment: 'Fixed my brakes perfectly.', reviewer_name: 'Tunde A.' }
+        ]
+        await supabase.from('reviews').insert(reviews)
+    }
 
     // 2. Insert Request
     const { data: req, error: reqError } = await supabase.from('requests').insert({

@@ -1,7 +1,9 @@
 import nodemailer from 'nodemailer'
 
 const transporter = nodemailer.createTransport({
-    service: 'gmail',
+    host: "smtp.zeptomail.com",
+    port: 465,
+    secure: true,
     auth: {
         user: process.env.EMAIL_USER,
         pass: process.env.EMAIL_APP_PASSWORD
@@ -25,10 +27,11 @@ export async function sendEmail({
 
     try {
         const info = await transporter.sendMail({
-            from: process.env.EMAIL_USER,
+            from: '"MechanicDriver" <no-reply@mechanicdriver.com>',
             to,
             subject,
-            html
+            html,
+            replyTo: process.env.SUPPORT_EMAIL || 'support@mechanicdriver.com'
         })
         console.log('Email sent:', info.messageId)
         return { success: true, messageId: info.messageId }

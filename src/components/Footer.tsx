@@ -15,15 +15,23 @@ export function Footer() {
                 </div>
 
                 <div className="flex gap-8 text-sm text-gray-400">
-                    <Link href="#" className="hover:text-white transition-colors">
+                    <Link href="/privacy" className="hover:text-white transition-colors">
                         Privacy
                     </Link>
-                    <Link href="#" className="hover:text-white transition-colors">
+                    <Link href="/terms" className="hover:text-white transition-colors">
                         Terms
                     </Link>
-                    <a href="mailto:cherubhenry@gmail.com" className="hover:text-white transition-colors">
-                        Contact
-                    </a>
+                    <div className="flex flex-col gap-3">
+                        <div className="border-l-2 border-white pl-3 font-semibold text-white leading-tight">Contact Us</div>
+                        <div className="flex flex-col gap-2 pl-3">
+                            <a href={`mailto:${process.env.CONTACT_EMAIL || 'hello@mechanicdriver.com'}`} className="text-xs hover:text-white transition-colors">
+                                Email Us
+                            </a>
+                            <a href={`tel:${process.env.CONTACT_NUMBER || '+2348119355197'}`} className="text-xs hover:text-white transition-colors">
+                                Call Us
+                            </a>
+                        </div>
+                    </div>
                 </div>
 
                 <div className="text-sm text-gray-500">

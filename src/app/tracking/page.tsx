@@ -23,7 +23,7 @@ export default async function TrackingPage({
             .from('requests')
             .select(`
                 *,
-                driver:drivers(*),
+                driver:drivers(*, reviews(*)),
                 quote:quotes(*)
             `)
             .eq('user_id', user.id)
@@ -37,7 +37,7 @@ export default async function TrackingPage({
                 driver: Array.isArray(r.driver) ? r.driver[0] : r.driver,
                 quote: Array.isArray(r.quote) ? r.quote[0] : r.quote
             }));
-        
+
         console.log('TrackingPage: Fetched requests', requests.length);
     }
 
