@@ -168,13 +168,13 @@ export function RequestForm({ servicePrices, needsPhone }: { servicePrices?: any
                     <ArrowLeft className="w-4 h-4" /> Back to details
                 </button>
 
-                {/* Pickup & Return Card */}
+                {/* Pickup & Repair Card */}
                 <div className="bg-white p-5 rounded-2xl border border-gray-200 shadow-sm">
                     <div className="flex justify-between items-start mb-1">
-                        <h3 className="font-bold text-gray-900 text-lg">Pickup & Return Management</h3>
+                        <h3 className="font-bold text-gray-900 text-lg">Pickup & Repair Management</h3>
                         <span className="font-bold text-gray-900 text-lg">₦{getPrice('pickup_return').toLocaleString()}</span>
                     </div>
-                    <p className="text-gray-500 text-sm mb-3">Car pickup & return to your location</p>
+                    <p className="text-gray-500 text-sm mb-3">Car pickup & repair to your location</p>
                     <p className="text-xs text-gray-400">* Charged after diagnosis approval</p>
                 </div>
 

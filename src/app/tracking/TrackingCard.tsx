@@ -600,14 +600,14 @@ Follow real-time status here: ${window.location.href}
                                     )}
                                 </div>
 
-                                {/* Pickup & Return Item */}
+                                {/* Pickup & Repair Item */}
                                 <div className="flex justify-between items-center text-sm">
                                     <div className="flex items-center gap-3">
                                         <div className="p-2 rounded-lg bg-orange-500/10 text-orange-500">
                                             <Car className="w-4 h-4" />
                                         </div>
                                         <div>
-                                            <p className="font-medium text-gray-200">Pickup & Return Management</p>
+                                            <p className="font-medium text-gray-200">Pickup & Repair Management</p>
                                             <p className="text-xs text-gray-600">Standard logistics fee</p>
                                         </div>
                                     </div>
