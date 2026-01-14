@@ -98,12 +98,12 @@ export default async function SignInPage({
                             />
                         </div>
 
-                        <button
+                        <AuthButton
                             formAction={login}
-                            className="w-full bg-gray-900 hover:bg-gray-800 text-white py-4 rounded-xl text-lg font-medium shadow-lg hover:shadow-xl transition-all"
+                            className="shadow-lg hover:shadow-xl hover:bg-gray-800 transition-all"
                         >
                             Sign In
-                        </button>
+                        </AuthButton>
                     </form>
                 </div>
 

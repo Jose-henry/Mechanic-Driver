@@ -2,8 +2,12 @@ import { Suspense } from "react";
 import { Navbar } from "@/components/Navbar";
 import { Footer } from "@/components/Footer";
 import { RequestForm } from "./RequestForm";
+import { createClient } from "@/utils/supabase/server";
 
-export default function RequestPage() {
+export default async function RequestPage() {
+    const supabase = await createClient()
+    const { data: servicePrices } = await supabase.from('service_prices').select('*')
+
     return (
         <main className="bg-[#FDFDFD]">
             <Navbar />
@@ -15,7 +19,7 @@ export default function RequestPage() {
 
                 <div className="bg-white p-8 rounded-3xl border border-gray-100 shadow-sm">
                     <Suspense fallback={<div className="p-8 text-center text-gray-500">Loading form...</div>}>
-                        <RequestForm />
+                        <RequestForm servicePrices={servicePrices || []} />
                     </Suspense>
                 </div>
             </div>

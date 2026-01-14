@@ -89,13 +89,8 @@ export async function submitRequest(prevState: any, formData: FormData) {
         html: emailHtml
     })
 
-    // Redirect to confirmation page (Price List) instead of direct tracking
-    // Pass flags to show correct prices
-    const params = new URLSearchParams();
-    if (isTowing) params.append('towing', 'true');
-    if (isCarWash) params.append('wash', 'true');
-
-    redirect(`/request/confirmation?${params.toString()}`)
+    // Redirect to tracking page directly
+    redirect(`/tracking?success=true`)
 }
 
 export async function submitRequestJson(data: any) {

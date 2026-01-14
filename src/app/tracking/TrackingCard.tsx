@@ -40,6 +40,7 @@ export default function TrackingCard({ req, cancelledIds, onCancelSuccess, servi
 
     const towingPrice = getPrice('towing_intracity')
     const carWashPrice = getPrice('car_wash_premium')
+    const pickupReturnPrice = getPrice('pickup_return')
 
     // ... existing derived state
     const currentStepIndex = STATUS_KEYS.indexOf(req.status)
@@ -98,14 +99,14 @@ export default function TrackingCard({ req, cancelledIds, onCancelSuccess, servi
             {quote ? (
                 <>
                     <span className="text-3xl font-bold text-white tracking-tight">
-                        ₦{(Number(quote.amount) + (req.is_towing ? towingPrice : 0) + (req.is_car_wash ? carWashPrice : 0)).toLocaleString()}
+                        ₦{(Number(quote.amount) + pickupReturnPrice + (req.is_towing ? towingPrice : 0) + (req.is_car_wash ? carWashPrice : 0)).toLocaleString()}
                     </span>
                     <p className="text-[10px] text-lime-500 mt-1">Ready for payment</p>
                 </>
             ) : (
                 <>
                     <span className="text-xl font-bold text-gray-400 tracking-tight">
-                        ₦{((req.is_towing ? towingPrice : 0) + (req.is_car_wash ? carWashPrice : 0)).toLocaleString()}
+                        ₦{(pickupReturnPrice + (req.is_towing ? towingPrice : 0) + (req.is_car_wash ? carWashPrice : 0)).toLocaleString()}
                         <span className="text-gray-600 text-base font-medium ml-1"> + Repair</span>
                     </span>
                     <p className="text-[10px] text-gray-500 mt-1">Repair cost pending diagnosis...</p>
@@ -599,6 +600,22 @@ Follow real-time status here: ${window.location.href}
                                     )}
                                 </div>
 
+                                {/* Pickup & Return Item */}
+                                <div className="flex justify-between items-center text-sm">
+                                    <div className="flex items-center gap-3">
+                                        <div className="p-2 rounded-lg bg-orange-500/10 text-orange-500">
+                                            <Car className="w-4 h-4" />
+                                        </div>
+                                        <div>
+                                            <p className="font-medium text-gray-200">Pickup & Return Management</p>
+                                            <p className="text-xs text-gray-600">Standard logistics fee</p>
+                                        </div>
+                                    </div>
+                                    <span className="font-mono font-medium text-white">
+                                        ₦{pickupReturnPrice.toLocaleString()}
+                                    </span>
+                                </div>
+
                                 {/* Towing Service Item */}
                                 {req.is_towing && (
                                     <div className="flex justify-between items-center text-sm">
@@ -645,14 +662,14 @@ Follow real-time status here: ${window.location.href}
                                         {quote ? (
                                             <>
                                                 <span className="text-3xl font-bold text-white tracking-tight">
-                                                    ₦{(Number(quote.amount) + (req.is_towing ? 50000 : 0) + (req.is_car_wash ? 3000 : 0)).toLocaleString()}
+                                                    ₦{(Number(quote.amount) + pickupReturnPrice + (req.is_towing ? towingPrice : 0) + (req.is_car_wash ? carWashPrice : 0)).toLocaleString()}
                                                 </span>
                                                 <p className="text-[10px] text-lime-500 mt-1">Ready for payment</p>
                                             </>
                                         ) : (
                                             <>
                                                 <span className="text-xl font-bold text-gray-400 tracking-tight">
-                                                    ₦{((req.is_towing ? 50000 : 0) + (req.is_car_wash ? 3000 : 0)).toLocaleString()}
+                                                    ₦{(pickupReturnPrice + (req.is_towing ? towingPrice : 0) + (req.is_car_wash ? carWashPrice : 0)).toLocaleString()}
                                                     <span className="text-gray-600 text-base font-medium ml-1"> + Repair</span>
                                                 </span>
                                                 <p className="text-[10px] text-gray-500 mt-1">Repair cost pending diagnosis...</p>
@@ -785,7 +802,7 @@ Follow real-time status here: ${window.location.href}
                     onClose={() => setIsBankModalOpen(false)}
                     requestId={req.id}
                     details={{
-                        amount: Number(quote.amount) + (req.is_towing ? towingPrice : 0) + (req.is_car_wash ? carWashPrice : 0),
+                        amount: Number(quote.amount) + pickupReturnPrice + (req.is_towing ? towingPrice : 0) + (req.is_car_wash ? carWashPrice : 0),
                         customerName: 'Customer',
                         vehicle: `${req.vehicle_make || req.brand || ''} ${req.vehicle_model || req.model || ''}`
                     }}

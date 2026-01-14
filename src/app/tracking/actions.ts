@@ -135,6 +135,12 @@ export async function markRequestPaid(requestId: string, details: any) {
         }
     }
 
+    // Always add Pickup & Return fee (Standard logistics)
+    const pickupReturn = getPriceObj('pickup_return')
+    if (pickupReturn) {
+        breakdownItems.push({ description: pickupReturn.label || 'Pickup & Return', amount: Number(pickupReturn.price) })
+    }
+
     // 1. Update Request Payment Status
     const { error } = await supabase
         .from('requests')
