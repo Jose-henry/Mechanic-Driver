@@ -16,13 +16,9 @@ export async function acceptQuote(requestId: string, quoteId: string) {
 
     if (quoteError) return { success: false, error: quoteError.message }
 
-    // 2. Update Request Status to 'maintenance_in_progress'
-    const { error: requestError } = await supabase
-        .from('requests')
-        .update({ status: 'maintenance_in_progress' })
-        .eq('id', requestId)
-
-    if (requestError) return { success: false, error: requestError.message }
+    // 2. Update Request Status - REMOVED per user request
+    // We want to keep the status as 'quote_ready' while payment is verifying.
+    // The status should only move to 'maintenance_in_progress' after admin confirms payment.
 
     revalidatePath('/tracking')
     return { success: true }
@@ -109,9 +105,35 @@ export async function markRequestPaid(requestId: string, details: any) {
 
     // Fetch Accepted Quote for Breakdown
     const { data: quote } = await supabase.from('quotes').select('breakdown').eq('request_id', requestId).eq('status', 'accepted').single()
+
+    // Fetch Service Prices
+    const { data: servicePrices } = await supabase.from('service_prices').select('key, price, label')
+    const getPriceObj = (key: string) => servicePrices?.find(p => p.key === key)
+
+    // Construct Breakdown Items
     // Explicitly cast or validate breakdown. Assuming it matches { description: string, amount: number }[]
-    const breakdownItems = Array.isArray(quote?.breakdown) ? quote.breakdown :
-        quote?.breakdown ? [{ description: 'Service Charge', amount: Number(details.amount) }] : []
+    let breakdownItems: { description: string, amount: number }[] = []
+
+    if (Array.isArray(quote?.breakdown)) {
+        breakdownItems = [...quote.breakdown]
+    } else if (quote?.breakdown) {
+        breakdownItems = [{ description: 'Service Charge', amount: Number(details.amount) }]
+    }
+
+    // Add Additional Services
+    if (req.is_towing) {
+        const towing = getPriceObj('towing_intracity')
+        if (towing) {
+            breakdownItems.push({ description: towing.label || 'Towing Service', amount: Number(towing.price) })
+        }
+    }
+
+    if (req.is_car_wash) {
+        const wash = getPriceObj('car_wash_premium')
+        if (wash) {
+            breakdownItems.push({ description: wash.label || 'Premium Car Wash', amount: Number(wash.price) })
+        }
+    }
 
     // 1. Update Request Payment Status
     const { error } = await supabase
@@ -131,6 +153,9 @@ export async function markRequestPaid(requestId: string, details: any) {
             <span style="color: #4ade80; font-size: 12px; text-transform: uppercase; letter-spacing: 1px;">Amount Paid</span>
             <div style="color: #ffffff; font-size: 32px; font-weight: bold; margin-top: 5px;">₦${Number(details.amount).toLocaleString()}</div>
         </div>
+
+        ${generateSection('Breakdown')}
+        ${breakdownItems.map(item => generateKeyValue(item.description, `₦${Number(item.amount).toLocaleString()}`)).join('')}
 
         ${generateSection('User Details')}
         ${generateKeyValue('Full Name', user?.user_metadata?.full_name || 'N/A')}

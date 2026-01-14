@@ -123,7 +123,7 @@ View Profile: ${window.location.href}
                         <img
                             src={driver.avatar_url}
                             alt={displayName}
-                            className="w-full h-full object-cover"
+                            className="w-full h-full object-cover object-top"
                         />
                     ) : (
                         <div className="w-full h-full flex flex-col items-center justify-center bg-gray-200 text-gray-400">

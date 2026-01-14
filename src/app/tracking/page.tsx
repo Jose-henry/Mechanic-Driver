@@ -41,6 +41,9 @@ export default async function TrackingPage({
         console.log('TrackingPage: Fetched requests', requests.length);
     }
 
+    // Fetch Service Prices
+    const { data: servicePrices } = await supabase.from('service_prices').select('*')
+
     return (
         <main className="bg-[#FDFDFD] min-h-screen flex flex-col">
             <Navbar />
@@ -56,7 +59,7 @@ export default async function TrackingPage({
 
                 <PendingRequestManager />
 
-                <TrackingList requests={requests} />
+                <TrackingList requests={requests} servicePrices={servicePrices || []} />
 
             </div>
             <Footer />

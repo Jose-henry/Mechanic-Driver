@@ -28,15 +28,91 @@ const STATUS_LABELS: Record<string, string> = {
     completed: 'Service Completed'
 }
 
-export default function TrackingCard({ req, cancelledIds, onCancelSuccess }: { req: any, cancelledIds?: Set<string>, onCancelSuccess?: (id: string) => void }) {
+export default function TrackingCard({ req, cancelledIds, onCancelSuccess, servicePrices }: { req: any, cancelledIds?: Set<string>, onCancelSuccess?: (id: string) => void, servicePrices?: any[] }) {
     const driver = req.driver
     const quote = req.quote
     const router = useRouter()
 
-    // Derived State
+    const getPrice = (key: string) => {
+        const service = servicePrices?.find(p => p.key === key)
+        return service ? Number(service.price) : 0
+    }
+
+    const towingPrice = getPrice('towing_intracity')
+    const carWashPrice = getPrice('car_wash_premium')
+
+    // ... existing derived state
     const currentStepIndex = STATUS_KEYS.indexOf(req.status)
     const activeStep = currentStepIndex === -1 ? 0 : currentStepIndex
     const isQuoteAccepted = quote?.status === 'accepted'
+    // ... rest of component logic ...
+
+    // ... lines 527-586 ...
+    {/* Towing Service Item */ }
+    {
+        req.is_towing && (
+            <div className="flex justify-between items-center text-sm">
+                <div className="flex items-center gap-3">
+                    <div className="p-2 rounded-lg bg-blue-500/10 text-blue-500">
+                        <Car className="w-4 h-4" />
+                    </div>
+                    <div>
+                        <p className="font-medium text-gray-200">Towing Service</p>
+                        <p className="text-xs text-gray-600">Flat rate intracity</p>
+                    </div>
+                </div>
+                <span className="font-mono font-medium text-white">
+                    ₦{towingPrice.toLocaleString()}
+                </span>
+            </div>
+        )
+    }
+
+    {/* Car Wash Item */ }
+    {
+        req.is_car_wash && (
+            <div className="flex justify-between items-center text-sm">
+                <div className="flex items-center gap-3">
+                    <div className="p-2 rounded-lg bg-cyan-500/10 text-cyan-500">
+                        <div className="w-4 h-4">💧</div>
+                    </div>
+                    <div>
+                        <p className="font-medium text-gray-200">Premium Car Wash</p>
+                        <p className="text-xs text-gray-600">Detailed cleaning</p>
+                    </div>
+                </div>
+                <span className="font-mono font-medium text-white">
+                    ₦{carWashPrice.toLocaleString()}
+                </span>
+            </div>
+        )
+    }
+
+    {/* Divider */ }
+    <div className="h-px bg-[#2A2A2A] my-4"></div>
+
+    {/* Total Section */ }
+    <div className="flex justify-between items-end">
+        <span className="text-gray-400 text-sm font-medium">Total Estimate</span>
+        <div className="text-right">
+            {quote ? (
+                <>
+                    <span className="text-3xl font-bold text-white tracking-tight">
+                        ₦{(Number(quote.amount) + (req.is_towing ? towingPrice : 0) + (req.is_car_wash ? carWashPrice : 0)).toLocaleString()}
+                    </span>
+                    <p className="text-[10px] text-lime-500 mt-1">Ready for payment</p>
+                </>
+            ) : (
+                <>
+                    <span className="text-xl font-bold text-gray-400 tracking-tight">
+                        ₦{((req.is_towing ? towingPrice : 0) + (req.is_car_wash ? carWashPrice : 0)).toLocaleString()}
+                        <span className="text-gray-600 text-base font-medium ml-1"> + Repair</span>
+                    </span>
+                    <p className="text-[10px] text-gray-500 mt-1">Repair cost pending diagnosis...</p>
+                </>
+            )}
+        </div>
+    </div>
     const canCancel = activeStep <= STATUS_KEYS.indexOf('quote_ready') && !isQuoteAccepted
 
     // Notes Parsing
@@ -216,7 +292,6 @@ Follow real-time status here: ${window.location.href}
     }
 
     // Payment Flags
-    const needsPayment = isQuoteAccepted && req.payment_status === 'pending'
     const isVerifyingPayment = req.payment_status === 'verifying'
     const isPaid = req.payment_status === 'paid'
 
@@ -589,7 +664,7 @@ Follow real-time status here: ${window.location.href}
 
                             {/* Action Footer */}
                             <div className="bg-[#1F1F1F] p-4 flex gap-3 border-t border-[#2A2A2A]">
-                                {quote && (quote.status === 'rejected' || hasDeclined) ? (
+                                {quote && (quote.status === 'rejected' || hasDeclined) && req.status !== 'quote_ready' ? (
                                     <div className="w-full py-3 bg-red-900/20 text-red-400 rounded-xl font-medium text-sm border border-red-900/30 flex items-center justify-center gap-2 animate-in fade-in zoom-in duration-300">
                                         <XCircle className="w-4 h-4" />
                                         Quote Declined - Paused until update
@@ -599,7 +674,7 @@ Follow real-time status here: ${window.location.href}
                                         <Loader2 className="w-4 h-4 animate-spin" />
                                         Verifying Payment...
                                     </div>
-                                ) : quote && quote.status === 'pending' && req.status !== 'cancelled' && req.payment_status !== 'paid' ? (
+                                ) : quote && (quote.status === 'pending' || req.status === 'quote_ready') && req.status !== 'cancelled' && req.payment_status !== 'paid' ? (
                                     <div className="w-full space-y-4">
                                         <div className="bg-red-500/10 border border-red-500/20 rounded-xl p-3 flex items-start gap-3">
                                             <AlertTriangle className="w-4 h-4 text-red-500 flex-shrink-0 mt-0.5" />
@@ -624,14 +699,6 @@ Follow real-time status here: ${window.location.href}
                                             </button>
                                         </div>
                                     </div>
-                                ) : needsPayment ? (
-                                    <button
-                                        onClick={() => setIsBankModalOpen(true)}
-                                        className="w-full py-3 bg-lime-500 hover:bg-lime-400 text-black rounded-xl font-bold text-sm shadow-[0_4px_15px_rgba(132,204,22,0.3)] transition-all flex items-center justify-center gap-2"
-                                    >
-                                        <CreditCard className="w-4 h-4" />
-                                        Pay Outstanding Balance
-                                    </button>
                                 ) : req.payment_status !== 'paid' ? (
                                     <button disabled className="w-full py-3 bg-[#252525] text-gray-600 rounded-xl font-medium text-sm cursor-not-allowed">
                                         Awaiting final bill...
@@ -718,12 +785,13 @@ Follow real-time status here: ${window.location.href}
                     onClose={() => setIsBankModalOpen(false)}
                     requestId={req.id}
                     details={{
-                        amount: quote.amount,
+                        amount: Number(quote.amount) + (req.is_towing ? towingPrice : 0) + (req.is_car_wash ? carWashPrice : 0),
                         customerName: 'Customer',
-                        vehicle: `${req.vehicle_make} ${req.vehicle_model}`
+                        vehicle: `${req.vehicle_make || req.brand || ''} ${req.vehicle_model || req.model || ''}`
                     }}
                     onPaymentConfirmed={handlePaymentSuccess}
                 />
+
             )}
 
             {/* Phone Modal */}

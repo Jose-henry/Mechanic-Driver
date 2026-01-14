@@ -8,7 +8,7 @@ import TrackingCard from './TrackingCard'
 import { createClient } from '@/utils/supabase/client'
 
 
-export function TrackingList({ requests }: { requests: any[] }) {
+export function TrackingList({ requests, servicePrices }: { requests: any[], servicePrices: any[] }) {
     const router = useRouter()
     const [cancelledIds, setCancelledIds] = useState<Set<string>>(new Set())
     const [activeTab, setActiveTab] = useState<'active' | 'history'>('active')
@@ -119,6 +119,7 @@ export function TrackingList({ requests }: { requests: any[] }) {
                                 req={req}
                                 cancelledIds={cancelledIds}
                                 onCancelSuccess={handleCancelSuccess}
+                                servicePrices={servicePrices}
                             />
                         );
                     })}
