@@ -17,7 +17,7 @@ export const requestSchema = z.object({
     brand: z.string().min(1, "Please select a car brand"),
     model: z.string().min(1, "Please enter the car model"),
     year: z.coerce.number().min(1900, "Invalid year").max(new Date().getFullYear() + 1, "Future year not allowed"),
-    licensePlate: z.string().optional(),
+    licensePlate: z.string().min(1, "Please enter a valid license plate"),
     pickupLocation: z.string().min(5, "Please enter a valid pickup address"),
     pickupDate: z.string().refine((date) => new Date(date) >= new Date(new Date().setHours(0, 0, 0, 0)), {
         message: "Pickup date cannot be in the past",

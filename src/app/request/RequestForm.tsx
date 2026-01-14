@@ -105,8 +105,8 @@ export function RequestForm({ servicePrices }: { servicePrices?: any[] }) {
                         <input name="year" required type="number" placeholder="2015" className="w-full p-4 bg-gray-50 border border-gray-200 rounded-xl focus:outline-none focus:ring-2 focus:ring-lime-300" />
                     </div>
                     <div className="space-y-2 md:col-span-2">
-                        <label className="text-sm font-medium text-gray-700">License Plate (Optional)</label>
-                        <input name="licensePlate" type="text" placeholder="ABC-123-DE" className="w-full p-4 bg-gray-50 border border-gray-200 rounded-xl focus:outline-none focus:ring-2 focus:ring-lime-300" />
+                        <label className="text-sm font-medium text-gray-700">License Plate</label>
+                        <input name="licensePlate" required type="text" placeholder="ABC-123-DE" className="w-full p-4 bg-gray-50 border border-gray-200 rounded-xl focus:outline-none focus:ring-2 focus:ring-lime-300" />
                     </div>
                 </div>
 
