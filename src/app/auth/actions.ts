@@ -145,6 +145,28 @@ export async function deleteAccount(reason: string, description: string) {
             description: description
         })
 
+    // Cleanup User Data (Reverse Dependency Order to avoid FK Constraint Errors)
+
+    // 1. Get all user requests to clean up their dependencies
+    const { data: userRequests } = await supabaseAdmin.from('requests').select('id').eq('user_id', user.id)
+
+    if (userRequests && userRequests.length > 0) {
+        const requestIds = userRequests.map(r => r.id)
+
+        // 2. Delete Quotes linked to these requests
+        await supabaseAdmin.from('quotes').delete().in('request_id', requestIds)
+
+        // 3. Delete Reviews linked to these requests
+        await supabaseAdmin.from('reviews').delete().in('request_id', requestIds)
+
+        // 4. Delete Requests
+        await supabaseAdmin.from('requests').delete().in('id', requestIds)
+    }
+
+    // 5. Delete Profile
+    await supabaseAdmin.from('profiles').delete().eq('id', user.id)
+
+    // 6. Finally, Delete Auth User
     const { error } = await supabaseAdmin.auth.admin.deleteUser(user.id)
 
     if (error) {

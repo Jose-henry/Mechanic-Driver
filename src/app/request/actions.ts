@@ -62,6 +62,12 @@ export async function submitRequest(prevState: any, formData: FormData) {
         status: 'pending' // Initial status: Finding Mechanic
     }).select().single()
 
+    // Update Phone if provided (and user didn't have one)
+    const phone = formData.get('phone') as string
+    if (phone && phone.length > 5) {
+        await supabase.from('profiles').update({ phone: phone }).eq('id', user.id)
+    }
+
     if (error) {
         return { error: error.message }
     }

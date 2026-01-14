@@ -6,7 +6,16 @@ import { createClient } from "@/utils/supabase/server";
 
 export default async function RequestPage() {
     const supabase = await createClient()
+    const { data: { user } } = await supabase.auth.getUser()
     const { data: servicePrices } = await supabase.from('service_prices').select('*')
+
+    let needsPhone = false
+    if (user) {
+        const { data: profile } = await supabase.from('profiles').select('phone').eq('id', user.id).single()
+        if (!profile?.phone) {
+            needsPhone = true
+        }
+    }
 
     return (
         <main className="bg-[#FDFDFD]">
@@ -19,7 +28,7 @@ export default async function RequestPage() {
 
                 <div className="bg-white p-8 rounded-3xl border border-gray-100 shadow-sm">
                     <Suspense fallback={<div className="p-8 text-center text-gray-500">Loading form...</div>}>
-                        <RequestForm servicePrices={servicePrices || []} />
+                        <RequestForm servicePrices={servicePrices || []} needsPhone={needsPhone} />
                     </Suspense>
                 </div>
             </div>

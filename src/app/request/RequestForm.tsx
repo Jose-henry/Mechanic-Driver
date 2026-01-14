@@ -5,7 +5,7 @@ import { useActionState, useEffect, useRef, useState } from "react";
 import { useRouter, useSearchParams } from "next/navigation";
 import { submitRequest } from "./actions";
 
-export function RequestForm({ servicePrices }: { servicePrices?: any[] }) {
+export function RequestForm({ servicePrices, needsPhone }: { servicePrices?: any[], needsPhone?: boolean }) {
     const router = useRouter()
     const searchParams = useSearchParams()
     const [state, formAction, isPending] = useActionState(submitRequest, null)
@@ -109,6 +109,13 @@ export function RequestForm({ servicePrices }: { servicePrices?: any[] }) {
                         <input name="licensePlate" required type="text" placeholder="ABC-123-DE" className="w-full p-4 bg-gray-50 border border-gray-200 rounded-xl focus:outline-none focus:ring-2 focus:ring-lime-300" />
                     </div>
                 </div>
+
+                {needsPhone && (
+                    <div className="space-y-2">
+                        <label className="text-sm font-medium text-gray-700">Phone Number <span className="text-lime-600 text-xs font-normal">(Required for contact)</span></label>
+                        <input name="phone" required type="tel" placeholder="080 1234 5678" className="w-full p-4 bg-gray-50 border border-gray-200 rounded-xl focus:outline-none focus:ring-2 focus:ring-lime-300" />
+                    </div>
+                )}
 
                 <div className="space-y-2">
                     <label className="text-sm font-medium text-gray-700">Service Type</label>
