@@ -25,7 +25,7 @@ export function Hero() {
                             <span className="relative inline-flex rounded-full h-2 w-2 bg-lime-500"></span>
                         </span>
                         <span className="text-xs font-medium text-gray-600 tracking-wide uppercase">
-                            Live in Benin, Abuja & Lagos
+                            Live in Benin. Lagos and Abuja coming soon
                         </span>
                     </div>
 
