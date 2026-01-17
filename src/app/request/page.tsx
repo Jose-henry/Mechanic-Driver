@@ -18,15 +18,15 @@ export default async function RequestPage() {
     }
 
     return (
-        <main className="bg-[#FDFDFD]">
+        <main className="bg-gray-50 min-h-screen">
             <Navbar />
             <div className="pt-32 pb-20 px-6 max-w-3xl mx-auto">
-                <div className="mb-10 text-center">
-                    <h1 className="text-3xl font-semibold text-gray-900 tracking-tight">Tell us about your vehicle</h1>
-                    <p className="text-gray-500 mt-2">We need a few details to assign the best mechanic driver.</p>
+                <div className="mb-10 text-center animate-in slide-in-from-bottom-4 fade-in duration-700">
+                    <h1 className="text-3xl font-bold text-gray-900 tracking-tight">Tell us about your vehicle</h1>
+                    <p className="text-gray-500 mt-2 text-lg">We need a few details to assign the best mechanic driver.</p>
                 </div>
 
-                <div className="bg-white p-8 rounded-3xl border border-gray-100 shadow-sm">
+                <div className="bg-white p-6 md:p-10 rounded-3xl border border-gray-100 shadow-xl shadow-gray-200/50 animate-in slide-in-from-bottom-8 fade-in duration-700 delay-100 fill-mode-both">
                     <Suspense fallback={<div className="p-8 text-center text-gray-500">Loading form...</div>}>
                         <RequestForm servicePrices={servicePrices || []} needsPhone={needsPhone} />
                     </Suspense>
