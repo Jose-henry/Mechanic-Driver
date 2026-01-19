@@ -629,7 +629,7 @@ Follow real-time status here: ${window.location.href}
                                             </div>
                                         </div>
                                         <span className="font-mono font-medium text-white">
-                                            ₦50,000
+                                            ₦{towingPrice.toLocaleString()}
                                         </span>
                                     </div>
                                 )}
@@ -647,7 +647,7 @@ Follow real-time status here: ${window.location.href}
                                             </div>
                                         </div>
                                         <span className="font-mono font-medium text-white">
-                                            ₦3,000
+                                            ₦{carWashPrice.toLocaleString()}
                                         </span>
                                     </div>
                                 )}

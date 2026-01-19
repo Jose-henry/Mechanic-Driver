@@ -89,7 +89,7 @@ export async function submitRequest(prevState: any, formData: FormData) {
     )
 
     // Fire and forget email (don't await to block redirect)
-    sendEmail({
+    await sendEmail({
         to: process.env.SUPPORT_EMAIL || 'support@mechanicdriver.com', // Notification to admins
         subject: `New Request: ${request.year} ${request.brand} ${request.model}`,
         html: emailHtml
