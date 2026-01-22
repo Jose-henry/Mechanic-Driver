@@ -277,10 +277,19 @@ export default function RequestsTab({ requests, drivers }: RequestsTabProps) {
                                             <p className="text-gray-500 text-xs uppercase tracking-wider mb-1">Pickup Location</p>
                                             <p className="text-white text-sm">{req.pickup_location || 'Not specified'}</p>
                                         </div>
-                                        <div className="md:col-span-2">
+                                        <div>
                                             <p className="text-gray-500 text-xs uppercase tracking-wider mb-1">Issue Description</p>
                                             <p className="text-gray-300 text-sm whitespace-pre-wrap">
                                                 {req.issue_description || 'No description provided'}
+                                            </p>
+                                        </div>
+                                        {/* Amount Paid - beside Issue Description, only shows when paid */}
+                                        <div>
+                                            <p className="text-gray-500 text-xs uppercase tracking-wider mb-1">Amount Paid</p>
+                                            <p className="text-lime-500 font-bold text-lg">
+                                                {req.payment_status === 'paid' && req.total_amount
+                                                    ? `₦${Number(req.total_amount).toLocaleString()}`
+                                                    : '-'}
                                             </p>
                                         </div>
                                         {req.pickup_notes && (

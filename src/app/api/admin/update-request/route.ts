@@ -192,58 +192,94 @@ export async function POST(request: NextRequest) {
             })
         }
 
+        // Email: Status -> Completed (Job Finished)
+        if (value === 'completed' && userEmail) {
+            const emailContent = `
+                <p style="color: #e5e5e5; font-size: 16px; margin-bottom: 24px;">
+                    Hello ${userName}, your service request has been marked as <strong>Completed</strong>! 🎉
+                </p>
+
+                <div style="background-color: #1a2e15; border: 1px solid #365314; padding: 20px; border-radius: 8px; text-align: center; margin-bottom: 20px;">
+                    <p style="color: #4ade80; font-size: 18px; margin: 0; font-weight: bold;">✅ Job Completed Successfully</p>
+                    <p style="color: #86efac; font-size: 14px; margin: 8px 0 0;">Your vehicle has been serviced and returned.</p>
+                </div>
+
+                ${generateSection('Service Summary')}
+                ${generateKeyValue('Vehicle', `${req.year} ${req.brand} ${req.model}`)}
+                ${generateKeyValue('License Plate', req.license_plate || 'N/A')}
+                ${generateKeyValue('Service Type', req.service_type || 'General Service')}
+
+                <p style="color: #888; font-size: 13px; margin-top: 20px;">
+                    Thank you for choosing Mechanic Driver! We hope you're satisfied with our service. If you have any feedback, please let us know.
+                </p>
+
+                ${generateCTAButton('Leave a Review', 'https://mechanicdriver.com/tracking')}
+            `
+
+            await sendEmail({
+                to: userEmail,
+                subject: `Service Completed - Thank You! - ${req.brand} ${req.model}`,
+                html: getEmailTemplate('Service Completed', emailContent)
+            })
+        }
+
         return NextResponse.json({ success: true })
     }
 
-    // Handle payment_status -> 'paid': Send receipt email
+    // Handle payment_status -> 'paid': Calculate total, update DB, send receipt email
     if (field === 'payment_status' && value === 'paid') {
-        // Update the payment status
-        const { error } = await supabase
-            .from('requests')
-            .update({ payment_status: 'paid' })
-            .eq('id', requestId)
-
-        if (error) {
-            return NextResponse.json({ error: error.message }, { status: 500 })
-        }
-
-        // Check if quote is accepted, then send receipt
+        // Check if quote is accepted
         const { data: quote } = await supabase
             .from('quotes')
             .select('*, breakdown, amount, status')
             .eq('request_id', requestId)
             .single()
 
+        // Get service prices
+        const { data: servicePrices } = await supabase.from('service_prices').select('key, price, label')
+        const getPrice = (key: string) => servicePrices?.find((p: any) => p.key === key)?.price || 0
+
+        // Build breakdown items and calculate total
+        const breakdownItems: { description: string; amount: number }[] = []
+        if (quote?.breakdown && typeof quote.breakdown === 'object') {
+            Object.entries(quote.breakdown).forEach(([key, val]) => {
+                breakdownItems.push({ description: key, amount: Number(val) })
+            })
+        }
+
+        // Add additional services
+        const pickupReturnPrice = Number(getPrice('pickup_return'))
+        const towingPrice = req.is_towing ? Number(getPrice('towing_intracity')) : 0
+        const carWashPrice = req.is_car_wash ? Number(getPrice('car_wash_premium')) : 0
+
+        if (pickupReturnPrice > 0) {
+            breakdownItems.push({ description: 'Pickup & Return', amount: pickupReturnPrice })
+        }
+        if (towingPrice > 0) {
+            breakdownItems.push({ description: 'Towing Service', amount: towingPrice })
+        }
+        if (carWashPrice > 0) {
+            breakdownItems.push({ description: 'Premium Car Wash', amount: carWashPrice })
+        }
+
+        // Calculate total amount
+        const totalAmount = breakdownItems.reduce((sum, item) => sum + item.amount, 0)
+
+        // Update payment status AND total_amount
+        const { error } = await supabase
+            .from('requests')
+            .update({
+                payment_status: 'paid',
+                total_amount: totalAmount
+            })
+            .eq('id', requestId)
+
+        if (error) {
+            return NextResponse.json({ error: error.message }, { status: 500 })
+        }
+
+        // Send receipt email if quote was accepted
         if (quote?.status === 'accepted' && userEmail) {
-            // Get service prices
-            const { data: servicePrices } = await supabase.from('service_prices').select('key, price, label')
-            const getPrice = (key: string) => servicePrices?.find((p: any) => p.key === key)?.price || 0
-
-            // Build breakdown items
-            const breakdownItems: { description: string; amount: number }[] = []
-            if (quote.breakdown && typeof quote.breakdown === 'object') {
-                Object.entries(quote.breakdown).forEach(([key, val]) => {
-                    breakdownItems.push({ description: key, amount: Number(val) })
-                })
-            }
-
-            // Add additional services
-            const pickupReturnPrice = Number(getPrice('pickup_return'))
-            const towingPrice = req.is_towing ? Number(getPrice('towing_intracity')) : 0
-            const carWashPrice = req.is_car_wash ? Number(getPrice('car_wash_premium')) : 0
-
-            if (pickupReturnPrice > 0) {
-                breakdownItems.push({ description: 'Pickup & Return', amount: pickupReturnPrice })
-            }
-            if (towingPrice > 0) {
-                breakdownItems.push({ description: 'Towing Service', amount: towingPrice })
-            }
-            if (carWashPrice > 0) {
-                breakdownItems.push({ description: 'Premium Car Wash', amount: carWashPrice })
-            }
-
-            const totalAmount = Number(quote.amount) + pickupReturnPrice + towingPrice + carWashPrice
-
             const emailContent = `
                 <p style="color: #e5e5e5; font-size: 16px; margin-bottom: 24px;">
                     Thank you for your payment, ${userName}! Your transaction has been confirmed and maintenance has begun.
@@ -276,8 +312,8 @@ export async function POST(request: NextRequest) {
 
             await sendEmail({
                 to: userEmail,
-                subject: `Payment Confirmed - Maintenance Begun - ${req.brand} ${req.model}`,
-                html: getEmailTemplate('Payment Receipt', emailContent)
+                subject: `Payment Confirmed Receipt - ${req.brand} ${req.model}`,
+                html: getEmailTemplate('Payment Confirmed Receipt', emailContent)
             })
         }
 

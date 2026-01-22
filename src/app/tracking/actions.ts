@@ -103,21 +103,23 @@ export async function markRequestPaid(requestId: string, details: any) {
     // Fetch Request Details
     const { data: req } = await supabase.from('requests').select('*').eq('id', requestId).single()
 
-    // Fetch Accepted Quote for Breakdown
-    const { data: quote } = await supabase.from('quotes').select('breakdown').eq('request_id', requestId).eq('status', 'accepted').single()
+    // Fetch Accepted Quote for Breakdown (include amount)
+    const { data: quote } = await supabase.from('quotes').select('breakdown, amount').eq('request_id', requestId).eq('status', 'accepted').single()
 
     // Fetch Service Prices
     const { data: servicePrices } = await supabase.from('service_prices').select('key, price, label')
     const getPriceObj = (key: string) => servicePrices?.find(p => p.key === key)
 
-    // Construct Breakdown Items
-    // Explicitly cast or validate breakdown. Assuming it matches { description: string, amount: number }[]
+    // Construct Breakdown Items from quote.breakdown (object format: { "labour": 20000 })
     let breakdownItems: { description: string, amount: number }[] = []
 
-    if (Array.isArray(quote?.breakdown)) {
+    if (quote?.breakdown && typeof quote.breakdown === 'object' && !Array.isArray(quote.breakdown)) {
+        // Object format: { "labour": 20000, "oil": 5000 }
+        Object.entries(quote.breakdown).forEach(([key, val]) => {
+            breakdownItems.push({ description: key, amount: Number(val) })
+        })
+    } else if (Array.isArray(quote?.breakdown)) {
         breakdownItems = [...quote.breakdown]
-    } else if (quote?.breakdown) {
-        breakdownItems = [{ description: 'Service Charge', amount: Number(details.amount) }]
     }
 
     // Add Additional Services
@@ -138,10 +140,13 @@ export async function markRequestPaid(requestId: string, details: any) {
     // Always add Pickup & Repair fee (Standard logistics)
     const pickupReturn = getPriceObj('pickup_return')
     if (pickupReturn) {
-        breakdownItems.push({ description: pickupReturn.label || 'Pickup & Repair', amount: Number(pickupReturn.price) })
+        breakdownItems.push({ description: pickupReturn.label || 'Pickup - Return & Management', amount: Number(pickupReturn.price) })
     }
 
-    // 1. Update Request Payment Status
+    // Calculate Total Amount
+    const totalAmount = breakdownItems.reduce((sum, item) => sum + item.amount, 0)
+
+    // 1. Update Request Payment Status (total_amount is calculated when admin confirms payment)
     const { error } = await supabase
         .from('requests')
         .update({ payment_status: 'verifying' })
@@ -149,7 +154,7 @@ export async function markRequestPaid(requestId: string, details: any) {
 
     if (error) return { success: false, error: error.message }
 
-    // 2. Send Real Email (Styled)
+    // 2. Send Payment Verification Email to Admin (with full breakdown)
     const emailContent = `
         <p style="color: #e5e5e5; font-size: 16px; margin-bottom: 24px;">
             User has marked the request as <strong>PAID</strong>. Please verify the bank transaction.
@@ -180,28 +185,7 @@ export async function markRequestPaid(requestId: string, details: any) {
         html: getEmailTemplate('Payment Verification', emailContent)
     })
 
-    // 3. Send Receipt to User
-    if (user?.email) {
-        const receiptContent = `
-            <p style="color: #e5e5e5; font-size: 16px; margin-bottom: 24px;">
-                Thank you for your payment! We have received your confirmation.
-            </p>
-
-            ${generateSection('Transaction Receipt')}
-            ${generateReceiptTable(breakdownItems as any, Number(details.amount))}
-
-            <div style="margin-top: 30px; padding-top: 20px; border-top: 1px dashed #333; text-align: center;">
-                <p style="color: #666; font-size: 12px; margin: 0;">Transaction Reference</p>
-                <p style="color: #888; font-family: monospace; font-size: 14px; margin: 5px 0;">${requestId.toUpperCase()}</p>
-            </div>
-        `
-
-        await sendEmail({
-            to: user.email,
-            subject: `Receipt: ₦${Number(details.amount).toLocaleString()} - Mechanic Driver`,
-            html: getEmailTemplate('Payment Successful', receiptContent)
-        })
-    }
+    // NOTE: Receipt email is sent ONLY when admin confirms payment (in update-request route)
 
     revalidatePath('/tracking')
     return { success: true }

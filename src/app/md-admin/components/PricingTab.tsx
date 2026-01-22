@@ -272,9 +272,9 @@ export default function PricingTab({ servicePrices }: PricingTabProps) {
                                     </div>
 
                                     {/* Description */}
-                                    <div className="lg:col-span-3 w-full">
+                                    <div className="lg:col-span-3 w-full overflow-hidden">
                                         <span className="text-gray-500 text-xs uppercase lg:hidden mr-2">Desc:</span>
-                                        <span className="text-gray-500 text-sm truncate">{price.description || '-'}</span>
+                                        <span className="text-gray-500 text-sm block truncate max-w-[200px] lg:max-w-none" title={price.description || ''}>{price.description || '-'}</span>
                                     </div>
 
                                     {/* Actions */}
