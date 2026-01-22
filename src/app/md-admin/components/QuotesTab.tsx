@@ -380,7 +380,12 @@ export default function QuotesTab({ quotes, requests, drivers }: QuotesTabProps)
 
                                     {/* Actions */}
                                     <div className="lg:col-span-1 flex items-center gap-2 w-full justify-end lg:justify-start pt-2 lg:pt-0 border-t lg:border-none border-[#222] mt-2 lg:mt-0">
-                                        <button type="button" onClick={() => startEditQuote(quote)} className="text-lime-500 text-xs flex items-center gap-1 bg-[#1A1A1A] lg:bg-transparent px-3 py-1.5 lg:p-0 rounded-lg lg:rounded-none">
+                                        <button
+                                            type="button"
+                                            onClick={() => startEditQuote(quote)}
+                                            disabled={quote.status === 'accepted'}
+                                            className={`text-xs flex items-center gap-1 bg-[#1A1A1A] lg:bg-transparent px-3 py-1.5 lg:p-0 rounded-lg lg:rounded-none ${quote.status === 'accepted' ? 'text-gray-600 cursor-not-allowed' : 'text-lime-500'}`}
+                                        >
                                             <Edit2 className="w-3 h-3" /> Edit
                                         </button>
                                         <button
@@ -389,8 +394,8 @@ export default function QuotesTab({ quotes, requests, drivers }: QuotesTabProps)
                                                 e.stopPropagation();
                                                 setConfirmDeleteId(quote.id);
                                             }}
-                                            disabled={deletingId === quote.id}
-                                            className="p-1.5 text-red-500 hover:bg-red-500/10 rounded-lg flex items-center gap-1 text-xs disabled:opacity-50"
+                                            disabled={deletingId === quote.id || quote.status === 'accepted'}
+                                            className={`p-1.5 hover:bg-red-500/10 rounded-lg flex items-center gap-1 text-xs disabled:opacity-50 ${quote.status === 'accepted' ? 'text-gray-600 cursor-not-allowed' : 'text-red-500'}`}
                                         >
                                             {deletingId === quote.id ? <Loader2 className="w-4 h-4 animate-spin" /> : <Trash2 className="w-4 h-4" />}
                                             <span className="lg:hidden">Delete</span>
