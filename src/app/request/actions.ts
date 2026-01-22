@@ -146,10 +146,10 @@ export async function cancelRequest(requestId: string) {
         return { error: 'unauthenticated' }
     }
 
-    // Check current status
+    // Fetch full request details for email (before deletion)
     const { data: request, error: fetchError } = await supabase
         .from('requests')
-        .select('status')
+        .select('*')
         .eq('id', requestId)
         .eq('user_id', user.id)
         .single()
@@ -177,6 +177,38 @@ export async function cancelRequest(requestId: string) {
     if (error) {
         return { error: error.message }
     }
+
+    // Send cancellation email to support
+    const emailHtml = getEmailTemplate(
+        `Request Cancelled`,
+        `
+        ${generateSection('Cancellation Details')}
+        ${generateKeyValue('Request ID', request.id)}
+        ${generateKeyValue('Status at Cancellation', request.status)}
+        ${generateKeyValue('Cancelled At', new Date().toLocaleString('en-NG', { timeZone: 'Africa/Lagos' }))}
+
+        ${generateSection('Vehicle Information')}
+        ${generateKeyValue('Vehicle', `${request.year} ${request.brand} ${request.model}`)}
+        ${generateKeyValue('License Plate', request.license_plate || 'N/A')}
+        ${generateKeyValue('Service Type', request.service_type || 'N/A')}
+
+        ${generateSection('User Information')}
+        ${generateKeyValue('User Name', user.user_metadata?.full_name || 'N/A')}
+        ${generateKeyValue('User Email', user.email || 'N/A')}
+        ${generateKeyValue('User ID', user.id)}
+
+        ${generateSection('Original Request')}
+        ${generateKeyValue('Pickup Location', request.pickup_location || 'N/A')}
+        ${generateKeyValue('Scheduled Pickup', `${request.pickup_date} at ${request.pickup_time}`)}
+        ${generateKeyValue('Issue Description', request.issue_description || 'N/A')}
+        `
+    )
+
+    await sendEmail({
+        to: process.env.SUPPORT_EMAIL || 'support@mechanicdriver.com',
+        subject: `Request Cancelled: ${request.year} ${request.brand} ${request.model}`,
+        html: emailHtml
+    })
 
     return { success: true }
 }
