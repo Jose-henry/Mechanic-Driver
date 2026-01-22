@@ -1,12 +1,20 @@
 import Link from "next/link";
-import { Wrench, LogOut } from "lucide-react";
+import { Wrench, LogOut, Settings } from "lucide-react";
 import { createClient } from "@/utils/supabase/server";
 import { logout } from "@/app/auth/actions";
 import { NavLinks } from "./NavLinks";
 
+const ADMIN_EMAILS = [
+    "josephhenry093@gmail.com",
+    "cherubhenry@gmail.com",
+    "ellenhenry210@gmail.com",
+    "support@mechanicdriver.com"
+];
+
 export async function Navbar() {
     const supabase = await createClient();
     const { data: { user } } = await supabase.auth.getUser();
+    const isAdmin = user && ADMIN_EMAILS.includes(user.email || "");
 
     return (
         <nav className="fixed top-0 w-full z-50 bg-[#FDFDFD]/80 backdrop-blur-md border-b border-gray-100">
@@ -37,6 +45,15 @@ export async function Navbar() {
                         </div>
                     ) : (
                         <div className="flex items-center gap-4">
+                            {isAdmin && (
+                                <Link
+                                    href="/md-admin"
+                                    className="flex items-center gap-1.5 text-sm font-medium text-lime-600 hover:text-lime-700 transition-colors"
+                                >
+                                    <Settings className="w-4 h-4" />
+                                    Admin
+                                </Link>
+                            )}
                             <Link
                                 href="/profile"
                                 className="text-sm font-medium text-gray-500 hover:text-gray-900 transition-colors"
@@ -59,3 +76,4 @@ export async function Navbar() {
         </nav >
     );
 }
+

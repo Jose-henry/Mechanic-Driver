@@ -160,6 +160,7 @@ export async function cancelRequest(requestId: string) {
 
     const nonCancellableStatuses = [
         'maintenance_in_progress',
+        'vehicle_enroute_back',
         'completed'
     ]
 

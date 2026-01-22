@@ -14,7 +14,7 @@ import { useRouter } from 'next/navigation'
 
 const STATUS_KEYS = [
     'pending', 'accepted', 'en_route', 'arrived',
-    'diagnosing', 'quote_ready', 'maintenance_in_progress', 'completed'
+    'diagnosing', 'quote_ready', 'maintenance_in_progress', 'vehicle_enroute_back', 'completed'
 ]
 
 const STATUS_LABELS: Record<string, string> = {
@@ -25,6 +25,7 @@ const STATUS_LABELS: Record<string, string> = {
     diagnosing: 'Diagnosing Vehicle',
     quote_ready: 'Quote Ready',
     maintenance_in_progress: 'Repairs in Progress',
+    vehicle_enroute_back: 'Vehicle Returning',
     completed: 'Service Completed'
 }
 

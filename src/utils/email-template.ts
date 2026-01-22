@@ -88,3 +88,13 @@ export function generateReceiptTable(items: { description: string; amount: numbe
     </table>
     `
 }
+
+export function generateCTAButton(text: string, url: string) {
+    return `
+    <div style="margin-top: 30px; text-align: center;">
+        <a href="${url}" style="display: inline-block; background-color: #84cc16; color: #000000; font-weight: 700; font-size: 14px; padding: 14px 32px; text-decoration: none; border-radius: 8px; box-shadow: 0 4px 15px rgba(132, 204, 22, 0.3);">
+            ${text}
+        </a>
+    </div>
+    `
+}
