@@ -4,12 +4,15 @@ import { ChevronRight, ArrowLeft, CheckCircle, MoreHorizontal, Car, Calendar, Ma
 import { useActionState, useEffect, useRef, useState } from "react";
 import { useRouter, useSearchParams } from "next/navigation";
 import { submitRequest } from "./actions";
+import DatePicker from "react-datepicker";
+import "react-datepicker/dist/react-datepicker.css";
 
 export function RequestForm({ servicePrices, needsPhone }: { servicePrices?: any[], needsPhone?: boolean }) {
     const router = useRouter()
     const searchParams = useSearchParams()
     const [state, formAction, isPending] = useActionState(submitRequest, null)
     const formRef = useRef<HTMLFormElement>(null)
+    const [startTime, setStartTime] = useState<Date | null>(null);
 
     // Helper to get price
     const getPrice = (key: string) => {
@@ -71,6 +74,21 @@ export function RequestForm({ servicePrices, needsPhone }: { servicePrices?: any
         }
     }, [state, router])
 
+    // Calculate minTime
+    const getMinTime = () => {
+        const now = new Date();
+        const min = new Date();
+        min.setHours(8, 0, 0, 0);
+
+        // Check if selected date is today
+        const todayStr = now.toLocaleDateString('en-CA');
+        if (formData.pickupDate === todayStr) {
+            // If now is later than 8am, use now.
+            if (now > min) return now;
+        }
+        return min;
+    };
+
     return (
         <form
             ref={formRef}
@@ -128,6 +146,7 @@ export function RequestForm({ servicePrices, needsPhone }: { servicePrices?: any
                                 <option value="Volvo">Volvo</option>
                                 <option value="Infiniti">Infiniti</option>
                                 <option value="Acura">Acura</option>
+                                <option value="Pontiac">Pontiac</option>
                             </select>
                         </div>
                         <div className="space-y-2 group">
@@ -168,11 +187,41 @@ export function RequestForm({ servicePrices, needsPhone }: { servicePrices?: any
                             <label className="text-sm font-semibold text-gray-700 flex items-center gap-2">
                                 <Calendar className="w-4 h-4 text-lime-600" /> Pickup Date
                             </label>
-                            <input name="pickupDate" required type="date" className="w-full p-4 bg-gray-50 border border-gray-200 rounded-2xl focus:outline-none focus:ring-2 focus:ring-lime-400/50 focus:border-lime-400 transition-all group-hover:bg-white group-hover:shadow-sm text-gray-600" />
+                            <input
+                                name="pickupDate"
+                                required
+                                type="date"
+                                value={formData.pickupDate}
+                                onChange={(e) => setFormData(prev => ({ ...prev, pickupDate: e.target.value }))}
+                                className="w-full p-4 bg-gray-50 border border-gray-200 rounded-2xl focus:outline-none focus:ring-2 focus:ring-lime-400/50 focus:border-lime-400 transition-all group-hover:bg-white group-hover:shadow-sm text-gray-600"
+                            />
                         </div>
                         <div className="space-y-2 group">
                             <label className="text-sm font-semibold text-gray-700">Pickup Time</label>
-                            <input name="pickupTime" required type="time" className="w-full p-4 bg-gray-50 border border-gray-200 rounded-2xl focus:outline-none focus:ring-2 focus:ring-lime-400/50 focus:border-lime-400 transition-all group-hover:bg-white group-hover:shadow-sm text-gray-600" />
+                            <DatePicker
+                                selected={startTime}
+                                onChange={(date: Date | null) => {
+                                    setStartTime(date);
+                                    if (date) {
+                                        const hours = date.getHours().toString().padStart(2, '0');
+                                        const minutes = date.getMinutes().toString().padStart(2, '0');
+                                        setFormData(prev => ({ ...prev, pickupTime: `${hours}:${minutes}` }));
+                                    } else {
+                                        setFormData(prev => ({ ...prev, pickupTime: '' }));
+                                    }
+                                }}
+                                showTimeSelect
+                                showTimeSelectOnly
+                                timeIntervals={30}
+                                timeCaption="Time"
+                                dateFormat="h:mm aa"
+                                minTime={getMinTime()}
+                                maxTime={new Date(new Date().setHours(13, 0, 0, 0))}
+                                placeholderText="Select Pickup Time (8am - 1pm)"
+                                className="w-full p-4 bg-gray-50 border border-gray-200 rounded-2xl focus:outline-none focus:ring-2 focus:ring-lime-400/50 focus:border-lime-400 transition-all group-hover:bg-white group-hover:shadow-sm text-gray-600"
+                                required
+                            />
+                            <input type="hidden" name="pickupTime" value={formData.pickupTime} />
                         </div>
                     </div>
 
