@@ -24,6 +24,7 @@ export async function submitRequest(prevState: any, formData: FormData) {
         serviceType: formData.get('serviceType'),
         isTowing: formData.get('isTowing') === 'on',
         isCarWash: formData.get('isCarWash') === 'on',
+        phone: formData.get('phone'),
     }
 
     // Validate with Zod
@@ -113,9 +114,9 @@ export async function submitRequestJson(data: any) {
         return { error: validation.error.issues[0].message }
     }
 
-    const { brand, model, year, licensePlate, pickupLocation, pickupDate, pickupTime, description, serviceType, isTowing, isCarWash } = validation.data;
+    const { brand, model, year, licensePlate, pickupLocation, pickupDate, pickupTime, description, serviceType, isTowing, isCarWash, phone } = validation.data;
 
-    const { error: insertError } = await supabase.from('requests').insert({
+    const { data: request, error: insertError } = await supabase.from('requests').insert({
         user_id: user.id,
         brand,
         model,
@@ -129,11 +130,39 @@ export async function submitRequestJson(data: any) {
         is_towing: isTowing,
         is_car_wash: isCarWash,
         status: 'pending'
-    })
+    }).select().single()
+
+    // Update Phone if provided (and user didn't have one)
+    if (phone && phone.length > 5) {
+        // Upsert to be absolutely safe (some OAuth users might not have had the trigger run correctly, or we just want to update)
+        await supabase.from('profiles').upsert({ id: user.id, phone: phone, full_name: user?.user_metadata?.full_name || '' })
+    }
 
     if (insertError) {
         return { error: insertError.message }
     }
+
+    // Send Email to Admins (Joseph & Cherub)
+    const emailHtml = getEmailTemplate(
+        `New Request from ${user.user_metadata?.full_name || 'User'}`,
+        `
+        ${generateSection('User Details')}
+        ${generateKeyValue('Full Name', user?.user_metadata?.full_name || 'N/A')}
+        ${generateKeyValue('Email', user?.email || 'N/A')}
+        ${generateKeyValue('User ID', user?.id || 'N/A')}
+
+        ${generateSection('Request Context')}
+        ${generateKeyValue('Request ID', request.id)}
+        ${generateKeyValue('Vehicle', `${request.year} ${request.brand} ${request.model}`)}
+        ${generateKeyValue('Location', request.pickup_location || 'N/A')}
+        `
+    )
+
+    await sendEmail({
+        to: process.env.SUPPORT_EMAIL || 'support@mechanicdriver.com', // Notification to admins
+        subject: `New Request: ${request.year} ${request.brand} ${request.model}`,
+        html: emailHtml
+    })
 
     return { success: true }
 }

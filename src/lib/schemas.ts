@@ -28,4 +28,5 @@ export const requestSchema = z.object({
     serviceType: z.string().min(3, "Please specify the service needed"),
     isTowing: z.coerce.boolean().optional(),
     isCarWash: z.coerce.boolean().optional(),
+    phone: z.string().optional(),
 });
