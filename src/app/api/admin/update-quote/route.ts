@@ -5,7 +5,8 @@ const ADMIN_EMAILS = [
     "josephhenry093@gmail.com",
     "cherubhenry@gmail.com",
     "ellenhenry210@gmail.com",
-    "support@mechanicdriver.com"
+    "support@mechanicdriver.com",
+    "emeraldhenry3@gmail.com"
 ]
 
 async function isAdmin(supabase: any) {
