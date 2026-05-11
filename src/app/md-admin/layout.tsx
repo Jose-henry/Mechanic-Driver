@@ -1,14 +1,7 @@
 import { createClient } from "@/utils/supabase/server";
 import { redirect } from "next/navigation";
 import { ToastProvider } from "./components/ToastProvider";
-
-const ADMIN_EMAILS = [
-    "josephhenry093@gmail.com",
-    "cherubhenry@gmail.com",
-    "ellenhenry210@gmail.com",
-    "support@mechanicdriver.com",
-    "emeraldhenry3@gmail.com"
-];
+import { ADMIN_EMAILS } from "@/lib/admin";
 
 export default async function AdminLayout({
     children,
@@ -18,12 +11,10 @@ export default async function AdminLayout({
     const supabase = await createClient();
     const { data: { user } } = await supabase.auth.getUser();
 
-    // Redirect if not authenticated
     if (!user) {
         return redirect("/signin?returnTo=/md-admin");
     }
 
-    // Check if user email is in admin whitelist
     const isAdmin = ADMIN_EMAILS.includes(user.email || "");
 
     if (!isAdmin) {

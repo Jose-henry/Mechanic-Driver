@@ -3,14 +3,7 @@ import { Wrench, LogOut, Settings } from "lucide-react";
 import { createClient } from "@/utils/supabase/server";
 import { logout } from "@/app/auth/actions";
 import { NavLinks } from "./NavLinks";
-
-const ADMIN_EMAILS = [
-    "josephhenry093@gmail.com",
-    "cherubhenry@gmail.com",
-    "ellenhenry210@gmail.com",
-    "support@mechanicdriver.com",
-    "emeraldhenry3@gmail.com"
-];
+import { ADMIN_EMAILS } from "@/lib/admin";
 
 export async function Navbar() {
     const supabase = await createClient();
@@ -29,11 +22,12 @@ export async function Navbar() {
                     </span>
                 </Link>
 
-                <NavLinks />
+                <NavLinks isLoggedIn={!!user} isAdmin={!!isAdmin} />
 
-                <div className="flex items-center gap-4">
+                {/* Desktop-only auth buttons */}
+                <div className="hidden md:flex items-center gap-4">
                     {!user ? (
-                        <div className="flex items-center gap-4">
+                        <>
                             <Link href="/signin" className="text-sm font-medium text-gray-900 hover:text-gray-700">
                                 Sign In
                             </Link>
@@ -43,9 +37,9 @@ export async function Navbar() {
                             >
                                 Sign Up
                             </Link>
-                        </div>
+                        </>
                     ) : (
-                        <div className="flex items-center gap-4">
+                        <>
                             {isAdmin && (
                                 <Link
                                     href="/md-admin"
@@ -55,26 +49,20 @@ export async function Navbar() {
                                     Admin
                                 </Link>
                             )}
-                            <Link
-                                href="/profile"
-                                className="text-sm font-medium text-gray-500 hover:text-gray-900 transition-colors"
-                            >
+                            <Link href="/profile" className="text-sm font-medium text-gray-500 hover:text-gray-900 transition-colors">
                                 Profile
                             </Link>
                             <form action={logout}>
-                                <button
-                                    type="submit"
-                                    className="flex items-center gap-2 text-sm font-medium text-gray-500 hover:text-red-600 transition-colors"
-                                >
+                                <button type="submit" className="flex items-center gap-2 text-sm font-medium text-gray-500 hover:text-red-600 transition-colors">
                                     <LogOut className="w-4 h-4" />
                                     Sign Out
                                 </button>
                             </form>
-                        </div>
+                        </>
                     )}
                 </div>
-            </div >
-        </nav >
+            </div>
+        </nav>
     );
 }
 

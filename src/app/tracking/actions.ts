@@ -28,8 +28,14 @@ export async function rejectQuote(requestId: string, quoteId: string, reason: st
     const supabase = await createClient()
     const { data: { user } } = await supabase.auth.getUser()
 
+    if (!user) return { success: false, error: 'unauthenticated' }
+
     // Fetch Request Details for Email
-    const { data: req } = await supabase.from('requests').select('*').eq('id', requestId).single()
+    const { data: req, error: reqFetchError } = await supabase.from('requests').select('*').eq('id', requestId).single()
+
+    if (reqFetchError || !req) {
+        console.error('[rejectQuote] Failed to fetch request:', reqFetchError?.message)
+    }
 
     // 1. Update Quote Status
     const { error: quoteError } = await supabase
@@ -47,33 +53,37 @@ export async function rejectQuote(requestId: string, quoteId: string, reason: st
 
     if (requestError) return { success: false, error: requestError.message }
 
-    // 3. Send Real Email (Styled)
-    const emailContent = `
-        <p style="color: #e5e5e5; font-size: 16px; margin-bottom: 24px;">
-            A quote has been declined by the user. The request is now paused.
-        </p>
-        
-        ${generateSection('Decline Reason')}
-        <div style="background-color: #2a1515; border-left: 4px solid #ef4444; padding: 15px; border-radius: 4px; color: #fca5a5; font-style: italic;">
-            "${reason}"
-        </div>
+    // 3. Send Email — wrapped so SMTP failure doesn't surface as a user-facing error
+    try {
+        const emailContent = `
+            <p style="color: #e5e5e5; font-size: 16px; margin-bottom: 24px;">
+                A quote has been declined by the user. The request is now paused.
+            </p>
 
-        ${generateSection('User Details')}
-        ${generateKeyValue('Full Name', user?.user_metadata?.full_name || 'N/A')}
-        ${generateKeyValue('Email', user?.email || 'N/A')}
-        ${generateKeyValue('User ID', user?.id || 'N/A')}
+            ${generateSection('Decline Reason')}
+            <div style="background-color: #2a1515; border-left: 4px solid #ef4444; padding: 15px; border-radius: 4px; color: #fca5a5; font-style: italic;">
+                "${reason}"
+            </div>
 
-        ${generateSection('Request Context')}
-        ${generateKeyValue('Request ID', requestId)}
-        ${generateKeyValue('Vehicle', `${req?.year} ${req?.brand} ${req?.model}`)}
-        ${generateKeyValue('Location', req?.pickup_location || 'N/A')}
-    `
+            ${generateSection('User Details')}
+            ${generateKeyValue('Full Name', user?.user_metadata?.full_name || 'N/A')}
+            ${generateKeyValue('Email', user?.email || 'N/A')}
+            ${generateKeyValue('Phone', req?.contact_phone || 'N/A')}
+            ${generateKeyValue('User ID', user?.id || 'N/A')}
 
-    await sendEmail({
-        to: process.env.SUPPORT_EMAIL || 'support@mechanicdriver.com',
-        subject: `Start Request: Quote Declined - ${req?.brand} ${req?.model}`,
-        html: getEmailTemplate('Quote Declined', emailContent)
-    })
+            ${generateSection('Request Context')}
+            ${generateKeyValue('Request ID', requestId)}
+            ${generateKeyValue('Vehicle', req ? `${req.year} ${req.brand} ${req.model}` : 'N/A')}
+            ${generateKeyValue('Location', req?.pickup_location || 'N/A')}
+        `
+        await sendEmail({
+            to: process.env.SUPPORT_EMAIL || 'support@mechanicdriver.com',
+            subject: `Quote Declined - ${req?.brand || 'Unknown'} ${req?.model || 'Vehicle'}`,
+            html: getEmailTemplate('Quote Declined', emailContent)
+        })
+    } catch (emailError) {
+        console.error('[rejectQuote] Email failed:', emailError)
+    }
 
     revalidatePath('/tracking')
     return { success: true }
@@ -102,6 +112,8 @@ export async function markRequestPaid(requestId: string, details: any) {
 
     // Fetch Request Details
     const { data: req } = await supabase.from('requests').select('*').eq('id', requestId).single()
+
+    if (!req) return { success: false, error: 'Request not found' }
 
     // Fetch Accepted Quote for Breakdown (include amount)
     const { data: quote } = await supabase.from('quotes').select('breakdown, amount').eq('request_id', requestId).eq('status', 'accepted').single()
@@ -171,6 +183,7 @@ export async function markRequestPaid(requestId: string, details: any) {
         ${generateSection('User Details')}
         ${generateKeyValue('Full Name', user?.user_metadata?.full_name || 'N/A')}
         ${generateKeyValue('Email', user?.email || 'N/A')}
+        ${generateKeyValue('Phone', req?.contact_phone || 'N/A')}
         ${generateKeyValue('User ID', user?.id || 'N/A')}
 
         ${generateSection('Request Context')}
@@ -179,11 +192,16 @@ export async function markRequestPaid(requestId: string, details: any) {
         ${generateKeyValue('License Plate', req?.license_plate || 'N/A')}
     `
 
-    await sendEmail({
-        to: process.env.SUPPORT_EMAIL || 'support@mechanicdriver.com',
-        subject: `PAYMENT VERIFICATION: ₦${details.amount} - Request #${requestId.slice(0, 6)}`,
-        html: getEmailTemplate('Payment Verification', emailContent)
-    })
+    // Wrapped so SMTP failure doesn't surface as a user-facing error after DB update already succeeded
+    try {
+        await sendEmail({
+            to: process.env.SUPPORT_EMAIL || 'support@mechanicdriver.com',
+            subject: `PAYMENT VERIFICATION: ₦${details.amount} - Request #${requestId.slice(0, 6)}`,
+            html: getEmailTemplate('Payment Verification', emailContent)
+        })
+    } catch (emailError) {
+        console.error('[markRequestPaid] Email failed:', emailError)
+    }
 
     // NOTE: Receipt email is sent ONLY when admin confirms payment (in update-request route)
 
@@ -232,6 +250,7 @@ export async function addPickupNote(requestId: string, note: string) {
         ${generateSection('User Details')}
         ${generateKeyValue('Full Name', user?.user_metadata?.full_name || 'N/A')}
         ${generateKeyValue('Email', user?.email || 'N/A')}
+        ${generateKeyValue('Phone', request?.contact_phone || 'N/A')}
         ${generateKeyValue('User ID', user?.id || 'N/A')}
 
         ${generateSection('Request Context')}
@@ -240,11 +259,15 @@ export async function addPickupNote(requestId: string, note: string) {
         ${generateKeyValue('Location', request?.pickup_location || 'N/A')}
     `
 
-    await sendEmail({
-        to: process.env.SUPPORT_EMAIL || 'support@mechanicdriver.com',
-        subject: `NEW NOTE: Request #${requestId.slice(0, 6)}`,
-        html: getEmailTemplate('New Pickup Note', emailContent)
-    })
+    try {
+        await sendEmail({
+            to: process.env.SUPPORT_EMAIL || 'support@mechanicdriver.com',
+            subject: `NEW NOTE: Request #${requestId.slice(0, 6)}`,
+            html: getEmailTemplate('New Pickup Note', emailContent)
+        })
+    } catch (emailError) {
+        console.error('[addPickupNote] Email failed:', emailError)
+    }
 
     return { success: true }
 }

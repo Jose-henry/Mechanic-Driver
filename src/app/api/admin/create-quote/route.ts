@@ -2,19 +2,7 @@ import { createClient, createAdminClient } from '@/utils/supabase/server'
 import { NextRequest, NextResponse } from 'next/server'
 import { sendEmail } from '@/utils/mail'
 import { getEmailTemplate, generateKeyValue, generateSection, generateReceiptTable, generateCTAButton } from '@/utils/email-template'
-
-const ADMIN_EMAILS = [
-    "josephhenry093@gmail.com",
-    "cherubhenry@gmail.com",
-    "ellenhenry210@gmail.com",
-    "support@mechanicdriver.com",
-    "emeraldhenry3@gmail.com"
-]
-
-async function isAdmin(supabase: any) {
-    const { data: { user } } = await supabase.auth.getUser()
-    return user && ADMIN_EMAILS.includes(user.email || '')
-}
+import { isAdmin } from '@/lib/admin'
 
 export async function POST(request: NextRequest) {
     const supabase = await createClient()
@@ -109,6 +97,8 @@ export async function POST(request: NextRequest) {
             ${generateKeyValue('Vehicle', `${req.year} ${req.brand} ${req.model}`)}
             ${generateKeyValue('License Plate', req.license_plate || 'N/A')}
             ${generateKeyValue('Service Type', req.service_type || 'General Service')}
+            ${generateKeyValue('Pickup Date', req.pickup_date || 'N/A')}
+            ${generateKeyValue('Pickup Time', req.pickup_time || 'N/A')}
 
             ${generateSection('Quote Breakdown')}
             ${generateReceiptTable(breakdownItems, totalAmount)}
@@ -125,11 +115,13 @@ export async function POST(request: NextRequest) {
             </p>
         `
 
-        await sendEmail({
-            to: userEmail,
-            subject: `Quote Ready: ₦${totalAmount.toLocaleString()} - ${req.brand} ${req.model}`,
-            html: getEmailTemplate('Your Quote is Ready', emailContent)
-        })
+        try {
+            await sendEmail({
+                to: userEmail,
+                subject: `Quote Ready: ₦${totalAmount.toLocaleString()} - ${req.brand} ${req.model}`,
+                html: getEmailTemplate('Your Quote is Ready', emailContent)
+            })
+        } catch (e) { console.error('[create-quote] email failed:', e) }
     }
 
     return NextResponse.json({ success: true })

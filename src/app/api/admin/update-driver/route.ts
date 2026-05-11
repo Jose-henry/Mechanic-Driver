@@ -9,15 +9,20 @@ export async function POST(request: NextRequest) {
         return NextResponse.json({ error: 'Unauthorized' }, { status: 401 })
     }
 
-    const { key, price, label, description } = await request.json()
+    const { driverId, full_name, phone_number, location, bio, avatar_url, is_verified } = await request.json()
 
-    if (!key || price === undefined) {
-        return NextResponse.json({ error: 'Key and price are required' }, { status: 400 })
+    if (!driverId) {
+        return NextResponse.json({ error: 'Driver ID is required' }, { status: 400 })
+    }
+
+    if (!full_name || !phone_number) {
+        return NextResponse.json({ error: 'Name and phone are required' }, { status: 400 })
     }
 
     const { error } = await supabase
-        .from('service_prices')
-        .insert({ key, price, label, description })
+        .from('drivers')
+        .update({ full_name, phone_number, location: location || null, bio: bio || null, avatar_url: avatar_url || null, is_verified })
+        .eq('id', driverId)
 
     if (error) {
         return NextResponse.json({ error: error.message }, { status: 500 })

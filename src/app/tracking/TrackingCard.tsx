@@ -1,3 +1,5 @@
+'use client'
+
 import { useState, useEffect } from 'react'
 import { createClient } from '@/utils/supabase/client'
 import {
@@ -47,74 +49,6 @@ export default function TrackingCard({ req, cancelledIds, onCancelSuccess, servi
     const currentStepIndex = STATUS_KEYS.indexOf(req.status)
     const activeStep = currentStepIndex === -1 ? 0 : currentStepIndex
     const isQuoteAccepted = quote?.status === 'accepted'
-    // ... rest of component logic ...
-
-    // ... lines 527-586 ...
-    {/* Towing Service Item */ }
-    {
-        req.is_towing && (
-            <div className="flex justify-between items-center text-sm">
-                <div className="flex items-center gap-3">
-                    <div className="p-2 rounded-lg bg-blue-500/10 text-blue-500">
-                        <Car className="w-4 h-4" />
-                    </div>
-                    <div>
-                        <p className="font-medium text-gray-200">Towing Service</p>
-                        <p className="text-xs text-gray-600">Flat rate intracity</p>
-                    </div>
-                </div>
-                <span className="font-mono font-medium text-white">
-                    ₦{towingPrice.toLocaleString()}
-                </span>
-            </div>
-        )
-    }
-
-    {/* Car Wash Item */ }
-    {
-        req.is_car_wash && (
-            <div className="flex justify-between items-center text-sm">
-                <div className="flex items-center gap-3">
-                    <div className="p-2 rounded-lg bg-cyan-500/10 text-cyan-500">
-                        <div className="w-4 h-4">💧</div>
-                    </div>
-                    <div>
-                        <p className="font-medium text-gray-200">Premium Car Wash</p>
-                        <p className="text-xs text-gray-600">Detailed cleaning</p>
-                    </div>
-                </div>
-                <span className="font-mono font-medium text-white">
-                    ₦{carWashPrice.toLocaleString()}
-                </span>
-            </div>
-        )
-    }
-
-    {/* Divider */ }
-    <div className="h-px bg-[#2A2A2A] my-4"></div>
-
-    {/* Total Section */ }
-    <div className="flex justify-between items-end">
-        <span className="text-gray-400 text-sm font-medium">Total Estimate</span>
-        <div className="text-right">
-            {quote ? (
-                <>
-                    <span className="text-3xl font-bold text-white tracking-tight">
-                        ₦{(Number(quote.amount) + pickupReturnPrice + (req.is_towing ? towingPrice : 0) + (req.is_car_wash ? carWashPrice : 0)).toLocaleString()}
-                    </span>
-                    <p className="text-[10px] text-lime-500 mt-1">Ready for payment</p>
-                </>
-            ) : (
-                <>
-                    <span className="text-xl font-bold text-gray-400 tracking-tight">
-                        ₦{(pickupReturnPrice + (req.is_towing ? towingPrice : 0) + (req.is_car_wash ? carWashPrice : 0)).toLocaleString()}
-                        <span className="text-gray-600 text-base font-medium ml-1"> + Repair</span>
-                    </span>
-                    <p className="text-[10px] text-gray-500 mt-1">Repair cost pending diagnosis...</p>
-                </>
-            )}
-        </div>
-    </div>
     const canCancel = activeStep <= STATUS_KEYS.indexOf('quote_ready') && !isQuoteAccepted
 
     // Notes Parsing
@@ -770,7 +704,7 @@ Follow real-time status here: ${window.location.href}
                             Share Details
                         </button>
                         <a
-                            href={`mailto:${process.env.SUPPORT_EMAIL || 'support@mechanicdriver.com'}?subject=Issue with Request ${req.id}&body=Hi Support, I have an issue with my request (ID: ${req.id})...`}
+                            href={`mailto:support@mechanicdriver.com?subject=Issue with Request ${req.id}&body=Hi Support, I have an issue with my request (ID: ${req.id})...`}
                             className="bg-[#191919] hover:bg-[#222] text-gray-400 hover:text-white p-3 rounded-xl text-xs flex flex-col items-center gap-2 transition-colors border border-[#333]"
                         >
                             <Flag className="w-4 h-4" />

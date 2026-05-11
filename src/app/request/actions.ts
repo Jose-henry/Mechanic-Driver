@@ -20,24 +20,25 @@ export async function submitRequest(prevState: any, formData: FormData) {
         pickupTime: formData.get('pickupTime'),
         description: formData.get('description'),
         pickupLocation: formData.get('pickupLocation'),
-        // New fields
         serviceType: formData.get('serviceType'),
         isTowing: formData.get('isTowing') === 'on',
         isCarWash: formData.get('isCarWash') === 'on',
-        phone: formData.get('phone'),
+        // null → undefined so Zod's optional() accepts it (field absent = not in FormData)
+        phone: formData.get('phone') ?? undefined,
     }
 
     // Validate with Zod
     const result = requestSchema.safeParse(rawData);
 
     if (!result.success) {
+        console.error('[submitRequest] Validation failed:', JSON.stringify(result.error.issues, null, 2))
         return {
             error: result.error.issues[0].message,
             formData: rawData
         }
     }
 
-    const { brand, model, year, licensePlate, pickupLocation, pickupDate, pickupTime, description, serviceType, isTowing, isCarWash } = result.data;
+    const { brand, model, year, licensePlate, pickupLocation, pickupDate, pickupTime, description, serviceType, isTowing, isCarWash, phone } = result.data;
 
     if (!user) {
         return {
@@ -56,21 +57,24 @@ export async function submitRequest(prevState: any, formData: FormData) {
         pickup_date: pickupDate,
         pickup_time: pickupTime,
         issue_description: description,
-        // New columns
         service_type: serviceType,
         is_towing: isTowing,
         is_car_wash: isCarWash,
-        status: 'pending' // Initial status: Finding Mechanic
+        contact_phone: phone || null,
+        status: 'pending'
     }).select().single()
 
-    // Update Phone if provided (and user didn't have one)
-    const phone = formData.get('phone') as string
-    if (phone && phone.length > 5) {
-        await supabase.from('profiles').update({ phone: phone }).eq('id', user.id)
+    if (error) {
+        console.error('[submitRequest] Insert failed:', error.message)
+        return { error: error.message }
     }
 
-    if (error) {
-        return { error: error.message }
+    // Update profile phone if it changed (only after confirmed insert)
+    if (phone && phone.length > 5) {
+        const { data: profile } = await supabase.from('profiles').select('phone').eq('id', user.id).single()
+        if (phone !== profile?.phone) {
+            await supabase.from('profiles').update({ phone }).eq('id', user.id)
+        }
     }
 
     // Send Email to Admins (Joseph & Cherub)
@@ -80,17 +84,21 @@ export async function submitRequest(prevState: any, formData: FormData) {
         ${generateSection('User Details')}
         ${generateKeyValue('Full Name', user?.user_metadata?.full_name || 'N/A')}
         ${generateKeyValue('Email', user?.email || 'N/A')}
+        ${generateKeyValue('Phone', phone || 'N/A')}
         ${generateKeyValue('User ID', user?.id || 'N/A')}
 
         ${generateSection('Request Context')}
         ${generateKeyValue('Request ID', request.id)}
         ${generateKeyValue('Vehicle', `${request.year} ${request.brand} ${request.model}`)}
+        ${generateKeyValue('Pickup Date', request.pickup_date || 'N/A')}
+        ${generateKeyValue('Pickup Time', request.pickup_time || 'N/A')}
         ${generateKeyValue('Location', request.pickup_location || 'N/A')}
+        ${generateKeyValue('Service Type', request.service_type || 'N/A')}
         `
     )
 
-    // Fire and forget email (don't await to block redirect)
-    await sendEmail({
+    // Fire and forget — intentionally not awaited so it doesn't block the redirect
+    sendEmail({
         to: process.env.SUPPORT_EMAIL || 'support@mechanicdriver.com', // Notification to admins
         subject: `New Request: ${request.year} ${request.brand} ${request.model}`,
         html: emailHtml
@@ -111,6 +119,7 @@ export async function submitRequestJson(data: any) {
     const validation = requestSchema.safeParse(data);
 
     if (!validation.success) {
+        console.error('[submitRequestJson] Validation failed:', JSON.stringify(validation.error.issues, null, 2))
         return { error: validation.error.issues[0].message }
     }
 
@@ -129,40 +138,51 @@ export async function submitRequestJson(data: any) {
         service_type: serviceType,
         is_towing: isTowing,
         is_car_wash: isCarWash,
+        contact_phone: phone || null,
         status: 'pending'
     }).select().single()
 
-    // Update Phone if provided (and user didn't have one)
-    if (phone && phone.length > 5) {
-        // Upsert to be absolutely safe (some OAuth users might not have had the trigger run correctly, or we just want to update)
-        await supabase.from('profiles').upsert({ id: user.id, phone: phone, full_name: user?.user_metadata?.full_name || '' })
-    }
-
     if (insertError) {
+        console.error('[submitRequestJson] Insert failed:', insertError.message)
         return { error: insertError.message }
     }
 
-    // Send Email to Admins (Joseph & Cherub)
-    const emailHtml = getEmailTemplate(
-        `New Request from ${user.user_metadata?.full_name || 'User'}`,
-        `
-        ${generateSection('User Details')}
-        ${generateKeyValue('Full Name', user?.user_metadata?.full_name || 'N/A')}
-        ${generateKeyValue('Email', user?.email || 'N/A')}
-        ${generateKeyValue('User ID', user?.id || 'N/A')}
+    // Update profile phone if it changed (only after confirmed insert)
+    if (phone && phone.length > 5) {
+        const { data: profile } = await supabase.from('profiles').select('phone').eq('id', user.id).single()
+        if (phone !== profile?.phone) {
+            await supabase.from('profiles').upsert({ id: user.id, phone, full_name: user?.user_metadata?.full_name || '' })
+        }
+    }
 
-        ${generateSection('Request Context')}
-        ${generateKeyValue('Request ID', request.id)}
-        ${generateKeyValue('Vehicle', `${request.year} ${request.brand} ${request.model}`)}
-        ${generateKeyValue('Location', request.pickup_location || 'N/A')}
-        `
-    )
+    // Send Email to Admins — wrapped so a SMTP failure doesn't block { success: true }
+    try {
+        const emailHtml = getEmailTemplate(
+            `New Request from ${user.user_metadata?.full_name || 'User'}`,
+            `
+            ${generateSection('User Details')}
+            ${generateKeyValue('Full Name', user?.user_metadata?.full_name || 'N/A')}
+            ${generateKeyValue('Email', user?.email || 'N/A')}
+            ${generateKeyValue('Phone', phone || 'N/A')}
+            ${generateKeyValue('User ID', user?.id || 'N/A')}
 
-    await sendEmail({
-        to: process.env.SUPPORT_EMAIL || 'support@mechanicdriver.com', // Notification to admins
-        subject: `New Request: ${request.year} ${request.brand} ${request.model}`,
-        html: emailHtml
-    })
+            ${generateSection('Request Context')}
+            ${generateKeyValue('Request ID', request.id)}
+            ${generateKeyValue('Vehicle', `${request.year} ${request.brand} ${request.model}`)}
+            ${generateKeyValue('Pickup Date', request.pickup_date || 'N/A')}
+            ${generateKeyValue('Pickup Time', request.pickup_time || 'N/A')}
+            ${generateKeyValue('Location', request.pickup_location || 'N/A')}
+            ${generateKeyValue('Service Type', request.service_type || 'N/A')}
+            `
+        )
+        await sendEmail({
+            to: process.env.SUPPORT_EMAIL || 'support@mechanicdriver.com',
+            subject: `New Request (Deferred): ${request.year} ${request.brand} ${request.model}`,
+            html: emailHtml
+        })
+    } catch (emailError) {
+        console.error('[submitRequestJson] Admin email failed:', emailError)
+    }
 
     return { success: true }
 }

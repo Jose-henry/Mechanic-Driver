@@ -9,12 +9,10 @@ export default async function RequestPage() {
     const { data: { user } } = await supabase.auth.getUser()
     const { data: servicePrices } = await supabase.from('service_prices').select('*')
 
-    let needsPhone = false
+    let userPhone: string | null = null
     if (user) {
         const { data: profile } = await supabase.from('profiles').select('phone').eq('id', user.id).single()
-        if (!profile?.phone) {
-            needsPhone = true
-        }
+        userPhone = profile?.phone || null
     }
 
     return (
@@ -28,7 +26,7 @@ export default async function RequestPage() {
 
                 <div className="bg-white p-6 md:p-10 rounded-3xl border border-gray-100 shadow-xl shadow-gray-200/50 animate-in slide-in-from-bottom-8 fade-in duration-700 delay-100 fill-mode-both">
                     <Suspense fallback={<div className="p-8 text-center text-gray-500">Loading form...</div>}>
-                        <RequestForm servicePrices={servicePrices || []} needsPhone={needsPhone} />
+                        <RequestForm servicePrices={servicePrices || []} userPhone={userPhone} />
                     </Suspense>
                 </div>
             </div>

@@ -10,6 +10,8 @@ interface PricingTabProps {
     servicePrices: any[];
 }
 
+interface EditRow { price: string; label: string; description: string; }
+
 export default function PricingTab({ servicePrices }: PricingTabProps) {
     const router = useRouter();
     const { showToast } = useToast();
@@ -18,76 +20,65 @@ export default function PricingTab({ servicePrices }: PricingTabProps) {
     const [deletingKey, setDeletingKey] = useState<string | null>(null);
     const [confirmDeleteKey, setConfirmDeleteKey] = useState<string | null>(null);
     const [editingKey, setEditingKey] = useState<string | null>(null);
-    const [editValue, setEditValue] = useState<string>('');
-    const [formData, setFormData] = useState({
-        label: '',
-        price: '',
-        description: ''
-    });
+    const [editRow, setEditRow] = useState<EditRow>({ price: '', label: '', description: '' });
+    const [formData, setFormData] = useState({ label: '', price: '', description: '' });
 
-    const generatedKey = formData.label
-        .toLowerCase()
-        .trim()
-        .replace(/[^a-z0-9\s]/g, '')
-        .replace(/\s+/g, '_');
+    const generatedKey = formData.label.toLowerCase().trim().replace(/[^a-z0-9\s]/g, '').replace(/\s+/g, '_');
 
     useEffect(() => {
         const interval = setInterval(() => router.refresh(), 30000);
         return () => clearInterval(interval);
     }, [router]);
 
+    const startEdit = (price: any) => {
+        setEditingKey(price.key);
+        setEditRow({ price: price.price?.toString() || '0', label: price.label || '', description: price.description || '' });
+    };
+
     const handleCreate = async (e: React.FormEvent) => {
         e.preventDefault();
-        if (!generatedKey) {
-            showToast('Please enter a service name', 'error');
-            return;
-        }
+        if (!generatedKey) { showToast('Please enter a service name', 'error'); return; }
         setLoading(true);
         try {
-            const response = await fetch('/api/admin/create-service-price', {
+            const res = await fetch('/api/admin/create-service-price', {
                 method: 'POST',
                 headers: { 'Content-Type': 'application/json' },
-                body: JSON.stringify({
-                    key: generatedKey,
-                    label: formData.label,
-                    price: Number(formData.price),
-                    description: formData.description
-                })
+                body: JSON.stringify({ key: generatedKey, label: formData.label, price: Number(formData.price), description: formData.description }),
             });
-            const data = await response.json();
-            if (response.ok) {
-                showToast('Service price created successfully', 'success');
+            const data = await res.json();
+            if (res.ok) {
+                showToast('Service price created', 'success');
                 setShowCreate(false);
                 setFormData({ label: '', price: '', description: '' });
                 router.refresh();
             } else {
-                showToast(data.error || 'Failed to create service price', 'error');
+                showToast(data.error || 'Failed to create', 'error');
             }
-        } catch (error) {
-            showToast('Failed to create service price', 'error');
+        } catch {
+            showToast('Failed to create', 'error');
         } finally {
             setLoading(false);
         }
     };
 
-    const handleUpdatePrice = async (key: string) => {
+    const handleUpdate = async (key: string) => {
         setLoading(true);
         try {
-            const response = await fetch('/api/admin/update-service-price', {
+            const res = await fetch('/api/admin/update-service-price', {
                 method: 'POST',
                 headers: { 'Content-Type': 'application/json' },
-                body: JSON.stringify({ key, price: Number(editValue) })
+                body: JSON.stringify({ key, price: Number(editRow.price), label: editRow.label, description: editRow.description }),
             });
-            const data = await response.json();
-            if (response.ok) {
-                showToast('Price updated successfully', 'success');
+            const data = await res.json();
+            if (res.ok) {
+                showToast('Service price updated', 'success');
                 setEditingKey(null);
                 router.refresh();
             } else {
-                showToast(data.error || 'Failed to update price', 'error');
+                showToast(data.error || 'Failed to update', 'error');
             }
-        } catch (error) {
-            showToast('Failed to update price', 'error');
+        } catch {
+            showToast('Failed to update', 'error');
         } finally {
             setLoading(false);
         }
@@ -95,31 +86,29 @@ export default function PricingTab({ servicePrices }: PricingTabProps) {
 
     const confirmDelete = async () => {
         if (!confirmDeleteKey) return;
-
         setDeletingKey(confirmDeleteKey);
         setConfirmDeleteKey(null);
-
         try {
-            const response = await fetch('/api/admin/delete-service-price', {
+            const res = await fetch('/api/admin/delete-service-price', {
                 method: 'POST',
                 headers: { 'Content-Type': 'application/json' },
-                body: JSON.stringify({ key: confirmDeleteKey })
+                body: JSON.stringify({ key: confirmDeleteKey }),
             });
-
-            const data = await response.json();
-
-            if (response.ok) {
-                showToast('Service price deleted successfully', 'success');
+            const data = await res.json();
+            if (res.ok) {
+                showToast('Service price deleted', 'success');
                 router.refresh();
             } else {
-                showToast(data.error || 'Failed to delete service price', 'error');
+                showToast(data.error || 'Failed to delete', 'error');
             }
-        } catch (error) {
-            showToast('Failed to delete service price', 'error');
+        } catch {
+            showToast('Failed to delete', 'error');
         } finally {
             setDeletingKey(null);
         }
     };
+
+    const inputCls = 'w-full px-3 py-1.5 bg-[#0A0A0A] border border-lime-500/50 rounded-lg text-white text-sm focus:border-lime-500 focus:outline-none';
 
     return (
         <div>
@@ -128,7 +117,7 @@ export default function PricingTab({ servicePrices }: PricingTabProps) {
                 onClose={() => setConfirmDeleteKey(null)}
                 onConfirm={confirmDelete}
                 title="Delete Service Price"
-                message={`Are you sure you want to delete this service price? This cannot be undone.`}
+                message="Are you sure you want to delete this service price? This cannot be undone."
                 confirmText="Delete Price"
             />
 
@@ -160,51 +149,25 @@ export default function PricingTab({ servicePrices }: PricingTabProps) {
                     <div className="grid md:grid-cols-2 gap-4">
                         <div>
                             <label className="text-gray-400 text-xs font-medium mb-1 block">Service Name *</label>
-                            <input
-                                type="text"
-                                required
-                                value={formData.label}
-                                onChange={(e) => setFormData({ ...formData, label: e.target.value })}
-                                className="w-full px-4 py-2.5 bg-[#0A0A0A] border border-[#222] rounded-xl text-white text-sm"
-                                placeholder="Oil Change"
-                            />
+                            <input type="text" required value={formData.label} onChange={e => setFormData({ ...formData, label: e.target.value })} className="w-full px-4 py-2.5 bg-[#0A0A0A] border border-[#222] rounded-xl text-white text-sm focus:border-lime-500 focus:outline-none" placeholder="Oil Change" />
                         </div>
                         <div>
                             <label className="text-gray-400 text-xs font-medium mb-1 block">Key (auto-generated)</label>
-                            <input
-                                type="text"
-                                readOnly
-                                value={generatedKey}
-                                className="w-full px-4 py-2.5 bg-[#0A0A0A] border border-[#222] rounded-xl text-gray-500 text-sm font-mono cursor-not-allowed"
-                                placeholder="oil_change"
-                            />
+                            <input type="text" readOnly value={generatedKey} className="w-full px-4 py-2.5 bg-[#0A0A0A] border border-[#222] rounded-xl text-gray-500 text-sm font-mono cursor-not-allowed" placeholder="oil_change" />
                         </div>
                         <div>
                             <label className="text-gray-400 text-xs font-medium mb-1 block">Price (₦) *</label>
-                            <input
-                                type="number"
-                                required
-                                value={formData.price}
-                                onChange={(e) => setFormData({ ...formData, price: e.target.value })}
-                                className="w-full px-4 py-2.5 bg-[#0A0A0A] border border-[#222] rounded-xl text-white text-sm"
-                                placeholder="5000"
-                            />
+                            <input type="number" required value={formData.price} onChange={e => setFormData({ ...formData, price: e.target.value })} className="w-full px-4 py-2.5 bg-[#0A0A0A] border border-[#222] rounded-xl text-white text-sm focus:border-lime-500 focus:outline-none" placeholder="5000" />
                         </div>
                         <div>
                             <label className="text-gray-400 text-xs font-medium mb-1 block">Description</label>
-                            <input
-                                type="text"
-                                value={formData.description}
-                                onChange={(e) => setFormData({ ...formData, description: e.target.value })}
-                                className="w-full px-4 py-2.5 bg-[#0A0A0A] border border-[#222] rounded-xl text-white text-sm"
-                                placeholder="Service description"
-                            />
+                            <input type="text" value={formData.description} onChange={e => setFormData({ ...formData, description: e.target.value })} className="w-full px-4 py-2.5 bg-[#0A0A0A] border border-[#222] rounded-xl text-white text-sm focus:border-lime-500 focus:outline-none" placeholder="Service description" />
                         </div>
                     </div>
                     <div className="flex justify-end gap-3 mt-4">
-                        <button type="button" onClick={() => setShowCreate(false)} className="px-4 py-2 text-gray-400 text-sm">Cancel</button>
-                        <button type="submit" disabled={loading || !generatedKey} className="px-4 py-2 bg-lime-500 text-black rounded-lg font-medium text-sm disabled:opacity-50">
-                            {loading && <Loader2 className="w-4 h-4 animate-spin inline mr-1" />}
+                        <button type="button" onClick={() => setShowCreate(false)} className="px-4 py-2 text-gray-400 text-sm hover:text-white">Cancel</button>
+                        <button type="submit" disabled={loading || !generatedKey} className="px-4 py-2 bg-lime-500 text-black rounded-lg font-medium text-sm disabled:opacity-50 flex items-center gap-2">
+                            {loading && <Loader2 className="w-4 h-4 animate-spin" />}
                             Create Price
                         </button>
                     </div>
@@ -218,81 +181,89 @@ export default function PricingTab({ servicePrices }: PricingTabProps) {
                 </div>
             ) : (
                 <div className="bg-[#111] rounded-2xl border border-[#222] overflow-hidden">
-                    {/* Table Header - Hidden on mobile */}
-                    <div className="hidden lg:grid grid-cols-12 gap-4 px-6 py-4 bg-[#0A0A0A] border-b border-[#222] text-xs font-medium text-gray-500 uppercase">
-                        <div className="col-span-3">Key</div>
-                        <div className="col-span-2">Price</div>
+                    {/* Desktop header */}
+                    <div className="hidden lg:grid grid-cols-12 gap-4 px-6 py-3 bg-[#0A0A0A] border-b border-[#222] text-xs font-medium text-gray-500 uppercase tracking-wider">
+                        <div className="col-span-2">Key</div>
+                        <div className="col-span-2">Price (₦)</div>
                         <div className="col-span-3">Label</div>
-                        <div className="col-span-3">Description</div>
+                        <div className="col-span-4">Description</div>
                         <div className="col-span-1">Actions</div>
                     </div>
+
                     <div className="divide-y divide-[#1A1A1A]">
                         {servicePrices.map((price) => (
-                            <div key={price.key}>
-                                {/* Responsive Grid/Stack */}
-                                <div className="flex flex-col lg:grid lg:grid-cols-12 gap-3 lg:gap-4 px-4 sm:px-6 py-4 hover:bg-[#1A1A1A]/50 items-start lg:items-center">
-                                    {/* Key & Price Row on Mobile */}
-                                    <div className="w-full flex justify-between items-center lg:contents">
-                                        <div className="lg:col-span-3">
+                            <div key={price.key} className={`px-4 lg:px-6 py-4 transition-colors ${editingKey === price.key ? 'bg-[#1a1a0a]' : 'hover:bg-[#1A1A1A]/50'}`}>
+                                {editingKey === price.key ? (
+                                    /* Edit mode — stacked on mobile, grid on desktop */
+                                    <div className="flex flex-col lg:grid lg:grid-cols-12 lg:gap-4 lg:items-center gap-3">
+                                        {/* Key (read-only) */}
+                                        <div className="lg:col-span-2 flex items-center gap-2">
+                                            <span className="text-gray-500 text-xs lg:hidden">Key:</span>
                                             <code className="text-lime-400 text-sm bg-lime-500/10 px-2 py-1 rounded">{price.key}</code>
                                         </div>
-
-                                        <div className="lg:col-span-2 text-right lg:text-left">
-                                            {editingKey === price.key ? (
-                                                <div className="flex items-center gap-2 justify-end lg:justify-start">
-                                                    <input
-                                                        type="number"
-                                                        value={editValue}
-                                                        onChange={(e) => setEditValue(e.target.value)}
-                                                        className="w-20 px-2 py-1 bg-[#0A0A0A] border border-lime-500 rounded text-white text-sm"
-                                                        autoFocus
-                                                    />
-                                                    <button type="button" onClick={() => handleUpdatePrice(price.key)} disabled={loading} className="p-1 text-lime-500 hover:bg-lime-500/10 rounded">
-                                                        <Check className="w-4 h-4" />
-                                                    </button>
-                                                    <button type="button" onClick={() => setEditingKey(null)} className="p-1 text-gray-500 hover:bg-gray-500/10 rounded">
-                                                        <X className="w-4 h-4" />
-                                                    </button>
-                                                </div>
-                                            ) : (
-                                                <div className="flex items-center gap-2 group justify-end lg:justify-start">
-                                                    <span className="text-white font-bold">₦{Number(price.price).toLocaleString()}</span>
-                                                    <button type="button" onClick={() => { setEditingKey(price.key); setEditValue(price.price.toString()); }} className="p-1 text-gray-600 hover:text-lime-500 opacity-0 group-hover:opacity-100 lg:opacity-0 lg:group-hover:opacity-100 opacity-100">
-                                                        <Pencil className="w-3 h-3" />
-                                                    </button>
-                                                </div>
-                                            )}
+                                        {/* Price */}
+                                        <div className="lg:col-span-2">
+                                            <label className="text-gray-500 text-xs mb-1 block lg:hidden">Price (₦)</label>
+                                            <input type="number" value={editRow.price} onChange={e => setEditRow({ ...editRow, price: e.target.value })} className={inputCls} autoFocus />
+                                        </div>
+                                        {/* Label */}
+                                        <div className="lg:col-span-3">
+                                            <label className="text-gray-500 text-xs mb-1 block lg:hidden">Label</label>
+                                            <input type="text" value={editRow.label} onChange={e => setEditRow({ ...editRow, label: e.target.value })} className={inputCls} placeholder="Display label" />
+                                        </div>
+                                        {/* Description */}
+                                        <div className="lg:col-span-4">
+                                            <label className="text-gray-500 text-xs mb-1 block lg:hidden">Description</label>
+                                            <input type="text" value={editRow.description} onChange={e => setEditRow({ ...editRow, description: e.target.value })} className={inputCls} placeholder="Service description" />
+                                        </div>
+                                        {/* Save/Cancel */}
+                                        <div className="lg:col-span-1 flex items-center gap-2 pt-2 lg:pt-0">
+                                            <button type="button" onClick={() => handleUpdate(price.key)} disabled={loading} className="p-1.5 bg-lime-500/20 text-lime-400 hover:bg-lime-500/30 rounded-lg disabled:opacity-50">
+                                                {loading ? <Loader2 className="w-4 h-4 animate-spin" /> : <Check className="w-4 h-4" />}
+                                            </button>
+                                            <button type="button" onClick={() => setEditingKey(null)} className="p-1.5 bg-gray-500/10 text-gray-400 hover:bg-gray-500/20 rounded-lg">
+                                                <X className="w-4 h-4" />
+                                            </button>
                                         </div>
                                     </div>
-
-                                    {/* Label */}
-                                    <div className="lg:col-span-3 w-full">
-                                        <span className="text-gray-500 text-xs uppercase lg:hidden mr-2">Label:</span>
-                                        <span className="text-gray-300 text-sm">{price.label || '-'}</span>
+                                ) : (
+                                    /* Display mode */
+                                    <div className="flex flex-col lg:grid lg:grid-cols-12 lg:gap-4 lg:items-center gap-2">
+                                        <div className="lg:col-span-2 flex items-center justify-between lg:block">
+                                            <code className="text-lime-400 text-sm bg-lime-500/10 px-2 py-1 rounded">{price.key}</code>
+                                            {/* Mobile action buttons inline with key */}
+                                            <div className="flex items-center gap-1 lg:hidden">
+                                                <button type="button" onClick={() => startEdit(price)} className="p-1.5 text-gray-400 hover:text-lime-400 hover:bg-lime-500/10 rounded-lg">
+                                                    <Pencil className="w-4 h-4" />
+                                                </button>
+                                                <button type="button" onClick={() => setConfirmDeleteKey(price.key)} disabled={deletingKey === price.key} className="p-1.5 text-red-500 hover:bg-red-500/10 rounded-lg disabled:opacity-50">
+                                                    {deletingKey === price.key ? <Loader2 className="w-4 h-4 animate-spin" /> : <Trash2 className="w-4 h-4" />}
+                                                </button>
+                                            </div>
+                                        </div>
+                                        <div className="lg:col-span-2 flex items-center gap-2">
+                                            <span className="text-gray-500 text-xs lg:hidden">Price:</span>
+                                            <span className="text-white font-bold">₦{Number(price.price).toLocaleString()}</span>
+                                        </div>
+                                        <div className="lg:col-span-3 flex items-center gap-2">
+                                            <span className="text-gray-500 text-xs lg:hidden">Label:</span>
+                                            <span className="text-gray-300 text-sm">{price.label || <span className="text-gray-600 italic">—</span>}</span>
+                                        </div>
+                                        <div className="lg:col-span-4 flex items-center gap-2 overflow-hidden">
+                                            <span className="text-gray-500 text-xs shrink-0 lg:hidden">Desc:</span>
+                                            <span className="text-gray-500 text-sm truncate" title={price.description || ''}>{price.description || <span className="text-gray-600 italic">—</span>}</span>
+                                        </div>
+                                        {/* Desktop actions */}
+                                        <div className="hidden lg:flex lg:col-span-1 items-center gap-1">
+                                            <button type="button" onClick={() => startEdit(price)} className="p-1.5 text-gray-500 hover:text-lime-400 hover:bg-lime-500/10 rounded-lg">
+                                                <Pencil className="w-4 h-4" />
+                                            </button>
+                                            <button type="button" onClick={() => setConfirmDeleteKey(price.key)} disabled={deletingKey === price.key} className="p-1.5 text-red-500 hover:bg-red-500/10 rounded-lg disabled:opacity-50">
+                                                {deletingKey === price.key ? <Loader2 className="w-4 h-4 animate-spin" /> : <Trash2 className="w-4 h-4" />}
+                                            </button>
+                                        </div>
                                     </div>
-
-                                    {/* Description */}
-                                    <div className="lg:col-span-3 w-full overflow-hidden">
-                                        <span className="text-gray-500 text-xs uppercase lg:hidden mr-2">Desc:</span>
-                                        <span className="text-gray-500 text-sm block truncate max-w-[200px] lg:max-w-none" title={price.description || ''}>{price.description || '-'}</span>
-                                    </div>
-
-                                    {/* Actions */}
-                                    <div className="lg:col-span-1 w-full flex justify-end lg:block pt-2 lg:pt-0 border-t lg:border-none border-[#222] mt-2 lg:mt-0">
-                                        <button
-                                            type="button"
-                                            onClick={(e) => {
-                                                e.stopPropagation();
-                                                setConfirmDeleteKey(price.key);
-                                            }}
-                                            disabled={deletingKey === price.key}
-                                            className="p-2 text-red-500 hover:text-red-400 hover:bg-red-500/10 rounded-lg disabled:opacity-50 flex items-center gap-2 lg:inline-flex"
-                                        >
-                                            {deletingKey === price.key ? <Loader2 className="w-4 h-4 animate-spin" /> : <Trash2 className="w-4 h-4" />}
-                                            <span className="lg:hidden text-xs">Delete Price</span>
-                                        </button>
-                                    </div>
-                                </div>
+                                )}
                             </div>
                         ))}
                     </div>

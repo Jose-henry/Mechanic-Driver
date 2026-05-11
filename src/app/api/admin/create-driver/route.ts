@@ -1,18 +1,6 @@
 import { createClient } from '@/utils/supabase/server'
 import { NextRequest, NextResponse } from 'next/server'
-
-const ADMIN_EMAILS = [
-    "josephhenry093@gmail.com",
-    "cherubhenry@gmail.com",
-    "ellenhenry210@gmail.com",
-    "support@mechanicdriver.com",
-    "emeraldhenry3@gmail.com"
-]
-
-async function isAdmin(supabase: any) {
-    const { data: { user } } = await supabase.auth.getUser()
-    return user && ADMIN_EMAILS.includes(user.email || '')
-}
+import { isAdmin } from '@/lib/admin'
 
 export async function POST(request: NextRequest) {
     try {

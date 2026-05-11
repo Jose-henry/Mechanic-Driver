@@ -44,6 +44,9 @@ export function PendingRequestManager() {
                 }
             } catch (e) {
                 console.error("Error processing pending request", e);
+                // Remove localStorage even on unexpected throw — the insert may have already
+                // succeeded, so keeping it would create a duplicate request on next login.
+                localStorage.removeItem('pendingRequest');
             } finally {
                 setSubmitting(false);
             }

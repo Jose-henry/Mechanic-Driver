@@ -2,19 +2,7 @@ import { createClient, createAdminClient } from '@/utils/supabase/server'
 import { NextRequest, NextResponse } from 'next/server'
 import { sendEmail } from '@/utils/mail'
 import { getEmailTemplate, generateKeyValue, generateSection, generateReceiptTable, generateCTAButton } from '@/utils/email-template'
-
-const ADMIN_EMAILS = [
-    "josephhenry093@gmail.com",
-    "cherubhenry@gmail.com",
-    "ellenhenry210@gmail.com",
-    "support@mechanicdriver.com",
-    "emeraldhenry3@gmail.com"
-]
-
-async function isAdmin(supabase: any) {
-    const { data: { user } } = await supabase.auth.getUser()
-    return user && ADMIN_EMAILS.includes(user.email || '')
-}
+import { isAdmin } from '@/lib/admin'
 
 export async function POST(request: NextRequest) {
     const supabase = await createClient()
@@ -98,6 +86,9 @@ export async function POST(request: NextRequest) {
                 ${generateKeyValue('Vehicle', `${req.year} ${req.brand} ${req.model}`)}
                 ${generateKeyValue('License Plate', req.license_plate || 'N/A')}
                 ${generateKeyValue('Pickup Location', req.pickup_location || 'N/A')}
+                ${generateKeyValue('Pickup Date', req.pickup_date || 'N/A')}
+                ${generateKeyValue('Pickup Time', req.pickup_time || 'N/A')}
+                ${generateKeyValue('Your Contact Number', req.contact_phone || 'N/A')}
 
                 <div style="margin-top: 30px; padding: 20px; background-color: #1a2e15; border: 1px solid #365314; border-radius: 8px; text-align: center;">
                     <p style="color: #4ade80; font-size: 14px; margin: 0;">Your driver is en route and will arrive shortly!</p>
@@ -130,6 +121,37 @@ export async function POST(request: NextRequest) {
             return NextResponse.json({ error: error.message }, { status: 500 })
         }
 
+        // Email: Status -> En Route (driver heading to pickup)
+        if (value === 'en_route' && userEmail) {
+            const emailContent = `
+                <p style="color: #e5e5e5; font-size: 16px; margin-bottom: 24px;">
+                    Hello ${userName}! Your mechanic driver is now on the way to pick up your vehicle.
+                </p>
+
+                ${generateSection('Status Update')}
+                <div style="background-color: #1c1917; border-left: 4px solid #f59e0b; padding: 15px; border-radius: 4px; margin-bottom: 20px;">
+                    <p style="color: #fcd34d; margin: 0; font-weight: bold;">🚗 Driver En Route</p>
+                    <p style="color: #fde68a; margin: 5px 0 0; font-size: 14px;">Please be available at your pickup location.</p>
+                </div>
+
+                ${generateSection('Pickup Details')}
+                ${generateKeyValue('Vehicle', `${req.year} ${req.brand} ${req.model}`)}
+                ${generateKeyValue('License Plate', req.license_plate || 'N/A')}
+                ${generateKeyValue('Pickup Location', req.pickup_location || 'N/A')}
+                ${generateKeyValue('Pickup Date', req.pickup_date || 'N/A')}
+                ${generateKeyValue('Pickup Time', req.pickup_time || 'N/A')}
+
+                ${generateCTAButton('Track Your Request', 'https://mechanicdriver.com/tracking')}
+            `
+            try {
+                await sendEmail({
+                    to: userEmail,
+                    subject: `Driver En Route - ${req.brand} ${req.model}`,
+                    html: getEmailTemplate('Driver En Route', emailContent)
+                })
+            } catch (e) { console.error('[update-request] en_route email failed:', e) }
+        }
+
         // Email: Status -> Arrived (at workshop)
         if (value === 'arrived' && userEmail) {
             const emailContent = `
@@ -154,11 +176,71 @@ export async function POST(request: NextRequest) {
                 ${generateCTAButton('Track Your Request', 'https://mechanicdriver.com/tracking')}
             `
 
-            await sendEmail({
-                to: userEmail,
-                subject: `Vehicle Arrived at Workshop - ${req.brand} ${req.model}`,
-                html: getEmailTemplate('Vehicle at Workshop', emailContent)
-            })
+            try {
+                await sendEmail({
+                    to: userEmail,
+                    subject: `Vehicle Arrived at Workshop - ${req.brand} ${req.model}`,
+                    html: getEmailTemplate('Vehicle at Workshop', emailContent)
+                })
+            } catch (e) { console.error('[update-request] arrived email failed:', e) }
+        }
+
+        // Email: Status -> Diagnosing
+        if (value === 'diagnosing' && userEmail) {
+            const emailContent = `
+                <p style="color: #e5e5e5; font-size: 16px; margin-bottom: 24px;">
+                    Hello ${userName}! Our technicians are now diagnosing your vehicle.
+                </p>
+
+                ${generateSection('Status Update')}
+                <div style="background-color: #1e1b4b; border-left: 4px solid #818cf8; padding: 15px; border-radius: 4px; margin-bottom: 20px;">
+                    <p style="color: #a5b4fc; margin: 0; font-weight: bold;">🔍 Diagnosing Vehicle</p>
+                    <p style="color: #c7d2fe; margin: 5px 0 0; font-size: 14px;">We will send you a detailed repair quote once the diagnosis is complete.</p>
+                </div>
+
+                ${generateSection('Vehicle Details')}
+                ${generateKeyValue('Vehicle', `${req.year} ${req.brand} ${req.model}`)}
+                ${generateKeyValue('License Plate', req.license_plate || 'N/A')}
+                ${generateKeyValue('Service Type', req.service_type || 'General Service')}
+
+                ${generateCTAButton('Track Your Request', 'https://mechanicdriver.com/tracking')}
+            `
+            try {
+                await sendEmail({
+                    to: userEmail,
+                    subject: `Diagnosis In Progress - ${req.brand} ${req.model}`,
+                    html: getEmailTemplate('Diagnosing Your Vehicle', emailContent)
+                })
+            } catch (e) { console.error('[update-request] diagnosing email failed:', e) }
+        }
+
+        // Email: Status -> Maintenance In Progress (after payment confirmed)
+        if (value === 'maintenance_in_progress' && userEmail) {
+            const emailContent = `
+                <p style="color: #e5e5e5; font-size: 16px; margin-bottom: 24px;">
+                    Hello ${userName}! Payment confirmed — our team has started working on your vehicle.
+                </p>
+
+                ${generateSection('Status Update')}
+                <div style="background-color: #1a2e15; border-left: 4px solid #4ade80; padding: 15px; border-radius: 4px; margin-bottom: 20px;">
+                    <p style="color: #4ade80; margin: 0; font-weight: bold;">🔧 Repairs In Progress</p>
+                    <p style="color: #86efac; margin: 5px 0 0; font-size: 14px;">We will notify you as soon as your vehicle is ready to return.</p>
+                </div>
+
+                ${generateSection('Vehicle Details')}
+                ${generateKeyValue('Vehicle', `${req.year} ${req.brand} ${req.model}`)}
+                ${generateKeyValue('License Plate', req.license_plate || 'N/A')}
+                ${generateKeyValue('Service Type', req.service_type || 'General Service')}
+
+                ${generateCTAButton('Track Your Request', 'https://mechanicdriver.com/tracking')}
+            `
+            try {
+                await sendEmail({
+                    to: userEmail,
+                    subject: `Repairs In Progress - ${req.brand} ${req.model}`,
+                    html: getEmailTemplate('Repairs In Progress', emailContent)
+                })
+            } catch (e) { console.error('[update-request] maintenance_in_progress email failed:', e) }
         }
 
         // Email: Status -> Vehicle En Route Back
@@ -186,11 +268,13 @@ export async function POST(request: NextRequest) {
                 ${generateCTAButton('Track Your Request', 'https://mechanicdriver.com/tracking')}
             `
 
-            await sendEmail({
-                to: userEmail,
-                subject: `Maintenance Complete - Vehicle Returning - ${req.brand} ${req.model}`,
-                html: getEmailTemplate('Vehicle Returning', emailContent)
-            })
+            try {
+                await sendEmail({
+                    to: userEmail,
+                    subject: `Maintenance Complete - Vehicle Returning - ${req.brand} ${req.model}`,
+                    html: getEmailTemplate('Vehicle Returning', emailContent)
+                })
+            } catch (e) { console.error('[update-request] vehicle_enroute_back email failed:', e) }
         }
 
         // Email: Status -> Completed (Job Finished)
@@ -217,11 +301,13 @@ export async function POST(request: NextRequest) {
                 ${generateCTAButton('Leave a Review', 'https://mechanicdriver.com/tracking')}
             `
 
-            await sendEmail({
-                to: userEmail,
-                subject: `Service Completed - Thank You! - ${req.brand} ${req.model}`,
-                html: getEmailTemplate('Service Completed', emailContent)
-            })
+            try {
+                await sendEmail({
+                    to: userEmail,
+                    subject: `Service Completed - Thank You! - ${req.brand} ${req.model}`,
+                    html: getEmailTemplate('Service Completed', emailContent)
+                })
+            } catch (e) { console.error('[update-request] completed email failed:', e) }
         }
 
         return NextResponse.json({ success: true })

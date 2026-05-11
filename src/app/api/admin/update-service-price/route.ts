@@ -1,18 +1,6 @@
 import { createClient } from '@/utils/supabase/server'
 import { NextRequest, NextResponse } from 'next/server'
-
-const ADMIN_EMAILS = [
-    "josephhenry093@gmail.com",
-    "cherubhenry@gmail.com",
-    "ellenhenry210@gmail.com",
-    "support@mechanicdriver.com",
-    "emeraldhenry3@gmail.com"
-]
-
-async function isAdmin(supabase: any) {
-    const { data: { user } } = await supabase.auth.getUser()
-    return user && ADMIN_EMAILS.includes(user.email || '')
-}
+import { isAdmin } from '@/lib/admin'
 
 export async function POST(request: NextRequest) {
     const supabase = await createClient()
@@ -21,15 +9,24 @@ export async function POST(request: NextRequest) {
         return NextResponse.json({ error: 'Unauthorized' }, { status: 401 })
     }
 
-    const { key, price } = await request.json()
+    const { key, price, label, description } = await request.json()
 
-    if (!key || price === undefined) {
-        return NextResponse.json({ error: 'Key and price are required' }, { status: 400 })
+    if (!key) {
+        return NextResponse.json({ error: 'Key is required' }, { status: 400 })
+    }
+
+    const updateData: Record<string, any> = {}
+    if (price !== undefined) updateData.price = Number(price)
+    if (label !== undefined) updateData.label = label
+    if (description !== undefined) updateData.description = description
+
+    if (Object.keys(updateData).length === 0) {
+        return NextResponse.json({ error: 'No fields to update' }, { status: 400 })
     }
 
     const { error } = await supabase
         .from('service_prices')
-        .update({ price })
+        .update(updateData)
         .eq('key', key)
 
     if (error) {

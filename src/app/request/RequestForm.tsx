@@ -7,7 +7,7 @@ import { submitRequest } from "./actions";
 import DatePicker from "react-datepicker";
 import "react-datepicker/dist/react-datepicker.css";
 
-export function RequestForm({ servicePrices, needsPhone }: { servicePrices?: any[], needsPhone?: boolean }) {
+export function RequestForm({ servicePrices, userPhone }: { servicePrices?: any[], userPhone?: string | null }) {
     const router = useRouter()
     const searchParams = useSearchParams()
     const [state, formAction, isPending] = useActionState(submitRequest, null)
@@ -166,14 +166,22 @@ export function RequestForm({ servicePrices, needsPhone }: { servicePrices?: any
                         </div>
                     </div>
 
-                    {needsPhone && (
-                        <div className="space-y-2 group animate-in slide-in-from-top-4 fade-in duration-500">
-                            <label className="text-sm font-semibold text-gray-700 flex items-center gap-2">
-                                <Smartphone className="w-4 h-4 text-lime-600" /> Phone Number <span className="text-lime-600 text-xs font-normal bg-lime-50 px-2 py-0.5 rounded-full border border-lime-100">Required</span>
-                            </label>
-                            <input name="phone" required type="tel" placeholder="080 1234 5678" className="w-full p-4 bg-gray-50 border border-gray-200 rounded-2xl focus:outline-none focus:ring-2 focus:ring-lime-400/50 focus:border-lime-400 transition-all group-hover:bg-white group-hover:shadow-sm placeholder:text-gray-400" />
-                        </div>
-                    )}
+                    <div className="space-y-2 group">
+                        <label className="text-sm font-semibold text-gray-700 flex items-center gap-2">
+                            <Smartphone className="w-4 h-4 text-lime-600" /> Phone Number
+                        </label>
+                        <input
+                            name="phone"
+                            required
+                            type="tel"
+                            defaultValue={userPhone || ''}
+                            placeholder="080 1234 5678"
+                            className="w-full p-4 bg-gray-50 border border-gray-200 rounded-2xl focus:outline-none focus:ring-2 focus:ring-lime-400/50 focus:border-lime-400 transition-all group-hover:bg-white group-hover:shadow-sm placeholder:text-gray-400"
+                        />
+                        {userPhone && (
+                            <p className="text-xs text-gray-400 pl-1">Pre-filled from your profile — update if this number has changed.</p>
+                        )}
+                    </div>
 
                     <div className="space-y-2 group">
                         <label className="text-sm font-semibold text-gray-700 flex items-center gap-2">
