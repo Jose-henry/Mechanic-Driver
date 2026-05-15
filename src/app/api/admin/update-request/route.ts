@@ -112,6 +112,32 @@ export async function POST(request: NextRequest) {
 
     // Handle status changes with email notifications
     if (field === 'status') {
+        // Hard-block check FIRST — before any DB writes — so nothing changes if blocked
+        if (value === 'completed') {
+            const { data: blockers } = await supabase
+                .from('outstanding_charges')
+                .select('id, status, total_amount, description')
+                .eq('request_id', requestId)
+                .in('status', ['pending', 'verifying', 'rejected'])
+
+            if (blockers && blockers.length > 0) {
+                const unpaidTotal = blockers
+                    .filter(c => c.status !== 'rejected')
+                    .reduce((sum, c) => sum + Number(c.total_amount), 0)
+                const rejectedCount = blockers.filter(c => c.status === 'rejected').length
+                const pendingCount = blockers.filter(c => c.status !== 'rejected').length
+                const parts = []
+                if (pendingCount > 0) parts.push(`${pendingCount} unpaid charge(s) totalling ₦${unpaidTotal.toLocaleString()}`)
+                if (rejectedCount > 0) parts.push(`${rejectedCount} declined charge(s) that must be deleted or re-published`)
+                return NextResponse.json({
+                    error: `Cannot complete request — ${parts.join(' and ')}. Resolve all outstanding charges first.`,
+                    blocked: true,
+                    blockers,
+                }, { status: 400 })
+            }
+        }
+
+        // Update status in DB
         const { error } = await supabase
             .from('requests')
             .update({ status: value })
@@ -119,6 +145,17 @@ export async function POST(request: NextRequest) {
 
         if (error) {
             return NextResponse.json({ error: error.message }, { status: 500 })
+        }
+
+        // Driver job count — increment when completing, decrement when reversing from completed
+        if (req.mechanic_driver_id) {
+            if (value === 'completed' && req.status !== 'completed') {
+                const { data: driver } = await supabase.from('drivers').select('jobs_completed').eq('id', req.mechanic_driver_id).single()
+                await supabase.from('drivers').update({ jobs_completed: (driver?.jobs_completed || 0) + 1 }).eq('id', req.mechanic_driver_id)
+            } else if (req.status === 'completed' && value !== 'completed') {
+                const { data: driver } = await supabase.from('drivers').select('jobs_completed').eq('id', req.mechanic_driver_id).single()
+                await supabase.from('drivers').update({ jobs_completed: Math.max(0, (driver?.jobs_completed || 0) - 1) }).eq('id', req.mechanic_driver_id)
+            }
         }
 
         // Email: Status -> En Route (driver heading to pickup)
@@ -308,6 +345,22 @@ export async function POST(request: NextRequest) {
                     html: getEmailTemplate('Service Completed', emailContent)
                 })
             } catch (e) { console.error('[update-request] completed email failed:', e) }
+        }
+
+        // Convert all paid outstanding charges to 'completed' (permanently locked)
+        if (value === 'completed') {
+            await supabase
+                .from('outstanding_charges')
+                .update({ status: 'completed', is_locked: true })
+                .eq('request_id', requestId)
+                .eq('status', 'paid')
+
+            // Lock any remaining draft charges too
+            await supabase
+                .from('outstanding_charges')
+                .update({ is_locked: true })
+                .eq('request_id', requestId)
+                .neq('status', 'completed')
         }
 
         return NextResponse.json({ success: true })

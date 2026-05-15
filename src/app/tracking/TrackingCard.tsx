@@ -9,7 +9,7 @@ import {
     Share2, Flag, XCircle, Plus
 } from 'lucide-react'
 import { cancelRequest } from '../request/actions'
-import { acceptQuote, rejectQuote, submitRating, markRequestPaid, addPickupNote } from './actions'
+import { acceptQuote, rejectQuote, submitRating, markRequestPaid, addPickupNote, markOutstandingPaid, rejectOutstanding } from './actions'
 import DriverProfileModal from './DriverProfileModal'
 import BankDetailsModal from './BankDetailsModal'
 import { useRouter } from 'next/navigation'
@@ -57,6 +57,10 @@ export default function TrackingCard({ req, cancelledIds, onCancelSuccess, servi
     // UI State
     const [isProfileOpen, setIsProfileOpen] = useState(false)
     const [isBankModalOpen, setIsBankModalOpen] = useState(false)
+    const [activePayChargeId, setActivePayChargeId] = useState<string | null>(null)
+    const [activeDeclineChargeId, setActiveDeclineChargeId] = useState<string | null>(null)
+    const [outstandingDeclineReason, setOutstandingDeclineReason] = useState('')
+    const [declineLoading, setDeclineLoading] = useState(false)
     const [hasDeclined, setHasDeclined] = useState(false)
     const [isPhoneModalOpen, setIsPhoneModalOpen] = useState(false)
     const [isDeclineModalOpen, setIsDeclineModalOpen] = useState(false)
@@ -70,7 +74,7 @@ export default function TrackingCard({ req, cancelledIds, onCancelSuccess, servi
     const [isAddingNote, setIsAddingNote] = useState(false)
     const [noteLoading, setNoteLoading] = useState(false)
     const [isNotesExpanded, setIsNotesExpanded] = useState(false)
-    const [isBreakdownExpanded, setIsBreakdownExpanded] = useState(false)
+    const [isBreakdownExpanded, setIsBreakdownExpanded] = useState(true)
 
     // Realtime Subscription
     useEffect(() => {
@@ -92,10 +96,17 @@ export default function TrackingCard({ req, cancelledIds, onCancelSuccess, servi
                 filter: `request_id=eq.${req.id}`
             }, (payload: any) => {
                 router.refresh()
-                // Reset decline state if admin resets quote
                 if (payload.new?.status === 'pending') {
                     setHasDeclined(false)
                 }
+            })
+            .on('postgres_changes', {
+                event: '*',
+                schema: 'public',
+                table: 'outstanding_charges',
+                filter: `request_id=eq.${req.id}`
+            }, () => {
+                router.refresh()
             })
             .subscribe()
 
@@ -591,27 +602,69 @@ Follow real-time status here: ${window.location.href}
                                 <div className="h-px bg-[#2A2A2A] my-4"></div>
 
                                 {/* Total Section */}
-                                <div className="flex justify-between items-end">
-                                    <span className="text-gray-400 text-sm font-medium">Total Estimate</span>
-                                    <div className="text-right">
-                                        {quote ? (
-                                            <>
-                                                <span className="text-3xl font-bold text-white tracking-tight">
-                                                    ₦{(Number(quote.amount) + pickupReturnPrice + (req.is_towing ? towingPrice : 0) + (req.is_car_wash ? carWashPrice : 0)).toLocaleString()}
+                                {(() => {
+                                    const baseTotal = quote
+                                        ? Number(quote.amount) + pickupReturnPrice + (req.is_towing ? towingPrice : 0) + (req.is_car_wash ? carWashPrice : 0)
+                                        : pickupReturnPrice + (req.is_towing ? towingPrice : 0) + (req.is_car_wash ? carWashPrice : 0)
+
+                                    // Include ALL outstanding charges (pending + settled) — total never reverts after payment
+                                    const allChargesForTotal: any[] = (req.outstanding_charges || [])
+                                        .filter((c: any) => c.status !== 'draft' && c.status !== 'rejected')
+                                    const pendingCharges = allChargesForTotal.filter((c: any) => c.status === 'pending' || c.status === 'verifying')
+                                    const settledCharges = allChargesForTotal.filter((c: any) => c.status === 'paid' || c.status === 'completed')
+                                    const pendingTotal = pendingCharges.reduce((s: number, c: any) => s + Number(c.total_amount), 0)
+                                    const settledTotal = settledCharges.reduce((s: number, c: any) => s + Number(c.total_amount), 0)
+                                    const outstandingGrandTotal = pendingTotal + settledTotal
+                                    const grandTotal = baseTotal + outstandingGrandTotal
+                                    const hasOutstanding = outstandingGrandTotal > 0
+
+                                    return (
+                                        <div className="space-y-2">
+                                            {/* Show base sub-line only when there's outstanding to distinguish */}
+                                            {hasOutstanding && quote && (
+                                                <div className="flex justify-between text-xs text-gray-500">
+                                                    <span>Repair + Services</span>
+                                                    <span className="font-mono">₦{baseTotal.toLocaleString()}</span>
+                                                </div>
+                                            )}
+                                            {pendingCharges.length > 0 && (
+                                                <div className="flex justify-between text-xs text-amber-400">
+                                                    <span>Outstanding ({pendingCharges.length} pending)</span>
+                                                    <span className="font-mono">₦{pendingTotal.toLocaleString()}</span>
+                                                </div>
+                                            )}
+                                            {settledCharges.length > 0 && (
+                                                <div className="flex justify-between text-xs text-green-400/80">
+                                                    <span>Settled Outstanding ({settledCharges.length})</span>
+                                                    <span className="font-mono">₦{settledTotal.toLocaleString()}</span>
+                                                </div>
+                                            )}
+                                            <div className="flex justify-between items-end">
+                                                <span className="text-gray-400 text-sm font-medium">
+                                                    {hasOutstanding ? 'Grand Total' : 'Total Estimate'}
                                                 </span>
-                                                <p className="text-[10px] text-lime-500 mt-1">Ready for payment</p>
-                                            </>
-                                        ) : (
-                                            <>
-                                                <span className="text-xl font-bold text-gray-400 tracking-tight">
-                                                    ₦{(pickupReturnPrice + (req.is_towing ? towingPrice : 0) + (req.is_car_wash ? carWashPrice : 0)).toLocaleString()}
-                                                    <span className="text-gray-600 text-base font-medium ml-1"> + Repair</span>
-                                                </span>
-                                                <p className="text-[10px] text-gray-500 mt-1">Repair cost pending diagnosis...</p>
-                                            </>
-                                        )}
-                                    </div>
-                                </div>
+                                                <div className="text-right">
+                                                    {quote ? (
+                                                        <>
+                                                            <span className="text-3xl font-bold text-white tracking-tight">₦{grandTotal.toLocaleString()}</span>
+                                                            <p className="text-[10px] text-lime-500 mt-1">
+                                                                {pendingTotal > 0 ? 'Includes outstanding balance' : hasOutstanding ? 'All charges settled' : 'Ready for payment'}
+                                                            </p>
+                                                        </>
+                                                    ) : (
+                                                        <>
+                                                            <span className="text-xl font-bold text-gray-400 tracking-tight">
+                                                                ₦{grandTotal.toLocaleString()}
+                                                                <span className="text-gray-600 text-base font-medium ml-1"> + Repair</span>
+                                                            </span>
+                                                            <p className="text-[10px] text-gray-500 mt-1">Repair cost pending diagnosis...</p>
+                                                        </>
+                                                    )}
+                                                </div>
+                                            </div>
+                                        </div>
+                                    )
+                                })()}
                             </div>
 
                             {/* Action Footer */}
@@ -683,6 +736,94 @@ Follow real-time status here: ${window.location.href}
                                 </div>
                             </div>
                         )}
+
+                        {/* Outstanding charges — one card per charge (non-draft only) */}
+                        {(() => {
+                            const allCharges: any[] = req.outstanding_charges || []
+                            // Global number = position in full array (1-based), so #1, #2, #3 always consistent
+                            const globalNum = (charge: any) => allCharges.findIndex((c: any) => c.id === charge.id) + 1
+
+                            const visible = allCharges.filter((c: any) => c.status !== 'draft')
+                            if (visible.length === 0) return null
+
+                            const pending = visible.filter((c: any) => c.status === 'pending')
+                            const verifying = visible.filter((c: any) => c.status === 'verifying')
+                            const settled = visible.filter((c: any) => c.status === 'paid' || c.status === 'completed')
+                            const rejected = visible.filter((c: any) => c.status === 'rejected')
+
+                            return (
+                                <div className="space-y-3">
+                                    {/* Pending — needs user payment */}
+                                    {pending.map((charge: any) => (
+                                        <div key={charge.id} className="bg-amber-500/5 rounded-2xl border border-amber-500/20 overflow-hidden">
+                                            <div className="px-5 py-3 border-b border-amber-500/10 flex justify-between items-center">
+                                                <div>
+                                                    <p className="text-amber-400 font-bold text-sm">Outstanding #{globalNum(charge)}</p>
+                                                    <p className="text-gray-500 text-xs">{charge.description}</p>
+                                                </div>
+                                                <span className="text-amber-400 font-bold font-mono">₦{Number(charge.total_amount).toLocaleString()}</span>
+                                            </div>
+                                            {charge.breakdown && Object.keys(charge.breakdown).length > 0 && (
+                                                <div className="px-5 py-3 space-y-1 border-b border-amber-500/10">
+                                                    {Object.entries(charge.breakdown as Record<string, number>).map(([k, v]) => (
+                                                        <div key={k} className="flex justify-between text-xs text-gray-500">
+                                                            <span>{k}</span><span className="font-mono">₦{Number(v).toLocaleString()}</span>
+                                                        </div>
+                                                    ))}
+                                                </div>
+                                            )}
+                                            <div className="p-4 flex gap-3">
+                                                <button
+                                                    onClick={() => setActiveDeclineChargeId(charge.id)}
+                                                    className="flex-1 py-2.5 bg-[#2A2A2A] hover:bg-[#333] text-gray-300 rounded-xl font-medium text-sm transition-colors"
+                                                >
+                                                    Decline
+                                                </button>
+                                                <button
+                                                    onClick={() => setActivePayChargeId(charge.id)}
+                                                    className="flex-[2] py-2.5 bg-amber-500 hover:bg-amber-400 text-black rounded-xl font-bold text-sm shadow-[0_4px_15px_rgba(245,158,11,0.3)] transition-all"
+                                                >
+                                                    Pay — ₦{Number(charge.total_amount).toLocaleString()}
+                                                </button>
+                                            </div>
+                                        </div>
+                                    ))}
+
+                                    {/* Verifying */}
+                                    {verifying.map((charge: any) => (
+                                        <div key={charge.id} className="bg-blue-500/10 rounded-xl p-4 border border-blue-500/20 flex items-center gap-3 animate-in fade-in">
+                                            <Loader2 className="w-5 h-5 text-blue-400 animate-spin shrink-0" />
+                                            <div>
+                                                <h4 className="font-bold text-sm text-blue-400">Verifying Outstanding #{globalNum(charge)}</h4>
+                                                <p className="text-xs text-blue-400/60">{charge.description} — ₦{Number(charge.total_amount).toLocaleString()} under review</p>
+                                            </div>
+                                        </div>
+                                    ))}
+
+                                    {/* Settled (paid / completed) */}
+                                    {settled.length > 0 && (
+                                        <div className="bg-green-500/5 rounded-xl border border-green-500/20 px-4 py-3">
+                                            <p className="text-green-400 font-semibold text-xs mb-2 flex items-center gap-2"><CheckCircle className="w-3.5 h-3.5" /> Settled Outstanding Charges</p>
+                                            {settled.map((charge: any) => (
+                                                <div key={charge.id} className="flex justify-between text-xs text-gray-500 py-0.5">
+                                                    <span>#{globalNum(charge)} {charge.description}</span>
+                                                    <span className="font-mono text-green-400">₦{Number(charge.total_amount).toLocaleString()} ✓</span>
+                                                </div>
+                                            ))}
+                                        </div>
+                                    )}
+
+                                    {/* Rejected — user declined */}
+                                    {rejected.map((charge: any) => (
+                                        <div key={charge.id} className="bg-red-500/5 rounded-xl border border-red-500/20 px-4 py-3">
+                                            <p className="text-red-400 text-xs font-bold mb-1">You declined Outstanding #{globalNum(charge)}</p>
+                                            <p className="text-gray-500 text-xs">{charge.description} — ₦{Number(charge.total_amount).toLocaleString()}</p>
+                                            {charge.rejection_reason && <p className="text-gray-600 text-xs italic mt-1">Your reason: "{charge.rejection_reason}"</p>}
+                                        </div>
+                                    ))}
+                                </div>
+                            )
+                        })()}
                     </div>
                 )}
 
@@ -743,7 +884,64 @@ Follow real-time status here: ${window.location.href}
                     }}
                     onPaymentConfirmed={handlePaymentSuccess}
                 />
+            )}
 
+            {/* Per-charge payment modal */}
+            {(() => {
+                const charges: any[] = req.outstanding_charges || []
+                const activeCharge = charges.find((c: any) => c.id === activePayChargeId)
+                if (!activeCharge) return null
+                return (
+                    <BankDetailsModal
+                        isOpen={!!activePayChargeId}
+                        onClose={() => setActivePayChargeId(null)}
+                        requestId={req.id}
+                        details={{ amount: Number(activeCharge.total_amount), customerName: 'Customer', vehicle: `${req.brand} ${req.model}` }}
+                        onPaymentConfirmed={async () => {
+                            const res = await markOutstandingPaid(activeCharge.id)
+                            if (!res.success) throw new Error(res.error)
+                            setActivePayChargeId(null)
+                            return res
+                        }}
+                    />
+                )
+            })()}
+
+            {/* Per-charge decline modal */}
+            {activeDeclineChargeId && (
+                <div className="fixed inset-0 z-[9999] flex items-center justify-center p-4">
+                    <div className="absolute inset-0 bg-black/80 backdrop-blur-sm" onClick={() => { setActiveDeclineChargeId(null); setOutstandingDeclineReason('') }} />
+                    <div className="bg-[#1A1A1A] border border-[#333] rounded-2xl w-full max-w-sm relative z-10 p-6 space-y-4 animate-in zoom-in-95">
+                        <h3 className="text-white font-bold text-lg">Decline Outstanding Charge</h3>
+                        <p className="text-gray-400 text-sm">Please give a reason — the admin will review and may revise the charge.</p>
+                        <textarea
+                            value={outstandingDeclineReason}
+                            onChange={e => setOutstandingDeclineReason(e.target.value)}
+                            placeholder="e.g. The amount seems too high..."
+                            className="w-full bg-[#111] border border-[#333] rounded-xl px-4 py-3 text-sm text-white resize-none focus:outline-none focus:border-red-500/50 min-h-[80px]"
+                            autoFocus
+                        />
+                        <div className="flex gap-3">
+                            <button onClick={() => { setActiveDeclineChargeId(null); setOutstandingDeclineReason('') }} className="flex-1 py-3 bg-[#252525] text-gray-400 rounded-xl text-sm">
+                                Cancel
+                            </button>
+                            <button
+                                disabled={!outstandingDeclineReason.trim() || declineLoading}
+                                onClick={async () => {
+                                    if (!outstandingDeclineReason.trim()) return
+                                    setDeclineLoading(true)
+                                    const res = await rejectOutstanding(activeDeclineChargeId, outstandingDeclineReason)
+                                    setDeclineLoading(false)
+                                    if (res.success) { setActiveDeclineChargeId(null); setOutstandingDeclineReason('') }
+                                    else alert(res.error)
+                                }}
+                                className="flex-[2] py-3 bg-red-600 hover:bg-red-500 text-white rounded-xl font-bold text-sm disabled:opacity-50 flex items-center justify-center gap-2"
+                            >
+                                {declineLoading ? <Loader2 className="w-4 h-4 animate-spin" /> : 'Decline Charge'}
+                            </button>
+                        </div>
+                    </div>
+                </div>
             )}
 
             {/* Phone Modal */}

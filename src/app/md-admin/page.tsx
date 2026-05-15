@@ -6,7 +6,7 @@ async function fetchAdminData() {
     const supabase = await createClient();
 
     const [requestsRes, driversRes, quotesRes, pricesRes] = await Promise.all([
-        supabase.from('requests').select('*, profiles!user_id(full_name, phone), drivers!mechanic_driver_id(full_name)').order('created_at', { ascending: false }),
+        supabase.from('requests').select('*, profiles!user_id(full_name, phone), drivers!mechanic_driver_id(full_name), outstanding_charges(*)').order('created_at', { ascending: false }),
         supabase.from('drivers').select('*').order('created_at', { ascending: false }),
         supabase.from('quotes').select('*, requests!request_id(brand, model, year)').order('created_at', { ascending: false }),
         supabase.from('service_prices').select('*').order('key', { ascending: true }),

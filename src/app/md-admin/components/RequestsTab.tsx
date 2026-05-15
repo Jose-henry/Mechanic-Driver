@@ -4,6 +4,7 @@ import { useState, useEffect } from 'react';
 import { ChevronDown, User, AlertCircle, Calendar, Droplets, Truck, FileText } from 'lucide-react';
 import { useRouter } from 'next/navigation';
 import { useToast } from './ToastProvider';
+import OutstandingSection from './OutstandingSection';
 
 interface RequestsTabProps {
     requests: any[];
@@ -70,6 +71,9 @@ export default function RequestsTab({ requests, drivers }: RequestsTabProps) {
             if (response.ok) {
                 showToast('Request updated successfully', 'success');
                 router.refresh();
+            } else if (data.blocked) {
+                // Hard block from server (e.g. unpaid outstanding charges)
+                showToast(data.error, 'error');
             } else {
                 showToast(data.error || 'Failed to update request', 'error');
             }
@@ -267,7 +271,7 @@ export default function RequestsTab({ requests, drivers }: RequestsTabProps) {
 
                             {/* Expanded Details */}
                             {expandedId === req.id && (
-                                <div className="px-4 sm:px-6 py-4 bg-[#0A0A0A] border-t border-[#1A1A1A] animate-in slide-in-from-top-2 fade-in duration-200">
+                                <div className="px-4 sm:px-6 py-4 bg-[#0A0A0A] border-t border-[#1A1A1A] animate-in slide-in-from-top-2 fade-in duration-200 space-y-5">
                                     <div className="grid md:grid-cols-2 gap-4">
                                         <div>
                                             <p className="text-gray-500 text-xs uppercase tracking-wider mb-1">Service Type</p>
@@ -279,19 +283,20 @@ export default function RequestsTab({ requests, drivers }: RequestsTabProps) {
                                         </div>
                                         <div>
                                             <p className="text-gray-500 text-xs uppercase tracking-wider mb-1">Issue Description</p>
-                                            <p className="text-gray-300 text-sm whitespace-pre-wrap">
-                                                {req.issue_description || 'No description provided'}
-                                            </p>
+                                            <p className="text-gray-300 text-sm whitespace-pre-wrap">{req.issue_description || 'No description provided'}</p>
                                         </div>
-                                        {/* Amount Paid - beside Issue Description, only shows when paid */}
                                         <div>
                                             <p className="text-gray-500 text-xs uppercase tracking-wider mb-1">Amount Paid</p>
                                             <p className="text-lime-500 font-bold text-lg">
-                                                {req.payment_status === 'paid' && req.total_amount
-                                                    ? `₦${Number(req.total_amount).toLocaleString()}`
-                                                    : '-'}
+                                                {req.payment_status === 'paid' && req.total_amount ? `₦${Number(req.total_amount).toLocaleString()}` : '-'}
                                             </p>
                                         </div>
+                                        {req.contact_phone && (
+                                            <div>
+                                                <p className="text-gray-500 text-xs uppercase tracking-wider mb-1">Contact Phone</p>
+                                                <p className="text-white text-sm">{req.contact_phone}</p>
+                                            </div>
+                                        )}
                                         {req.pickup_notes && (
                                             <div className="md:col-span-2">
                                                 <p className="text-gray-500 text-xs uppercase tracking-wider mb-1">Pickup Notes</p>
@@ -299,6 +304,12 @@ export default function RequestsTab({ requests, drivers }: RequestsTabProps) {
                                             </div>
                                         )}
                                     </div>
+
+                                    <OutstandingSection
+                                        requestId={req.id}
+                                        charges={req.outstanding_charges || []}
+                                        isRequestCompleted={req.status === 'completed'}
+                                    />
                                 </div>
                             )}
                         </div>
