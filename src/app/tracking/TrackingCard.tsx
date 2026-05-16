@@ -9,7 +9,7 @@ import {
     Share2, Flag, XCircle, Plus
 } from 'lucide-react'
 import { cancelRequest } from '../request/actions'
-import { acceptQuote, rejectQuote, submitRating, markRequestPaid, addPickupNote, markOutstandingPaid, rejectOutstanding } from './actions'
+import { acceptQuote, rejectQuote, markRequestPaid, addPickupNote, markOutstandingPaid, rejectOutstanding } from './actions'
 import DriverProfileModal from './DriverProfileModal'
 import BankDetailsModal from './BankDetailsModal'
 import { useRouter } from 'next/navigation'
@@ -52,7 +52,7 @@ export default function TrackingCard({ req, cancelledIds, onCancelSuccess, servi
     const canCancel = activeStep <= STATUS_KEYS.indexOf('quote_ready') && !isQuoteAccepted
 
     // Notes Parsing
-    const notes = req.issue_description ? req.issue_description.split('\n\n') : []
+    const notes = req.pickup_notes ? (req.pickup_notes as string).split('\n\n') : []
 
     // UI State
     const [isProfileOpen, setIsProfileOpen] = useState(false)
@@ -364,6 +364,17 @@ Follow real-time status here: ${window.location.href}
                                 </span>
                             </div>
                         </div>
+
+                        {/* Issue Description */}
+                        {req.issue_description && (
+                            <div className="mt-4 flex gap-2 text-sm">
+                                <span className="w-1.5 h-1.5 rounded-full bg-gray-600 mt-1.5 shrink-0"></span>
+                                <div>
+                                    <span className="text-gray-500 block mb-0.5">Issue Description:</span>
+                                    <span className="text-gray-300 leading-relaxed">{req.issue_description}</span>
+                                </div>
+                            </div>
+                        )}
                     </div>
                 </div>
 
@@ -869,6 +880,9 @@ Follow real-time status here: ${window.location.href}
                     onClose={() => setIsProfileOpen(false)}
                     driver={driver}
                     onCancelRequest={canCancel ? handleCancel : undefined}
+                    requestId={req.id}
+                    isCompleted={req.status === 'completed'}
+                    hasReviewed={!!req.rating}
                 />
             )}
 

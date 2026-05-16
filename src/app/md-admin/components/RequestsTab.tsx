@@ -1,10 +1,11 @@
 'use client';
 
 import { useState, useEffect } from 'react';
-import { ChevronDown, User, AlertCircle, Calendar, Droplets, Truck, FileText } from 'lucide-react';
+import { ChevronDown, User, AlertCircle, Calendar, Droplets, Truck, FileText, Trash2 } from 'lucide-react';
 import { useRouter } from 'next/navigation';
 import { useToast } from './ToastProvider';
 import OutstandingSection from './OutstandingSection';
+import ConfirmationModal from './ConfirmationModal';
 
 interface RequestsTabProps {
     requests: any[];
@@ -48,6 +49,8 @@ export default function RequestsTab({ requests, drivers }: RequestsTabProps) {
     const { showToast } = useToast();
     const [loading, setLoading] = useState(false);
     const [expandedId, setExpandedId] = useState<string | null>(null);
+    const [confirmDeleteId, setConfirmDeleteId] = useState<string | null>(null);
+    const [deletingId, setDeletingId] = useState<string | null>(null);
 
     // Auto-refresh every 30 seconds
     useEffect(() => {
@@ -84,6 +87,31 @@ export default function RequestsTab({ requests, drivers }: RequestsTabProps) {
         }
     };
 
+    const handleDelete = async () => {
+        if (!confirmDeleteId) return;
+        const idToDelete = confirmDeleteId;
+        setDeletingId(idToDelete);
+        setConfirmDeleteId(null);
+        try {
+            const response = await fetch('/api/admin/delete-request', {
+                method: 'POST',
+                headers: { 'Content-Type': 'application/json' },
+                body: JSON.stringify({ requestId: idToDelete })
+            });
+            const data = await response.json();
+            if (response.ok) {
+                showToast('Request deleted successfully', 'success');
+                router.refresh();
+            } else {
+                showToast(data.error || 'Failed to delete request', 'error');
+            }
+        } catch {
+            showToast('Failed to delete request', 'error');
+        } finally {
+            setDeletingId(null);
+        }
+    };
+
     if (requests.length === 0) {
         return (
             <div className="text-center py-16">
@@ -96,6 +124,17 @@ export default function RequestsTab({ requests, drivers }: RequestsTabProps) {
 
     return (
         <div className="space-y-4">
+            <ConfirmationModal
+                isOpen={!!confirmDeleteId}
+                onClose={() => setConfirmDeleteId(null)}
+                onConfirm={handleDelete}
+                title="Delete Request"
+                message="This will permanently delete the request along with all associated quotes, outstanding charges, and reviews. This cannot be undone."
+                confirmText="Delete Request"
+                isLoading={!!deletingId}
+                variant="danger"
+            />
+
             {/* Auto-refresh indicator */}
             <div className="flex justify-end">
                 <span className="text-gray-600 text-xs flex items-center gap-2">
@@ -112,7 +151,8 @@ export default function RequestsTab({ requests, drivers }: RequestsTabProps) {
                     <div className="col-span-2">Status</div>
                     <div className="col-span-2">Payment</div>
                     <div className="col-span-2">Driver</div>
-                    <div className="col-span-2">Customer</div>
+                    <div className="col-span-1">Customer</div>
+                    <div className="col-span-1"></div>
                 </div>
 
                 {/* Table Body */}
@@ -257,8 +297,8 @@ export default function RequestsTab({ requests, drivers }: RequestsTabProps) {
                                 </div>
 
                                 {/* Customer - Hidden on mobile (shown in vehicle row) */}
-                                <div className="hidden lg:block lg:col-span-2">
-                                    <p className="text-white text-sm">{req.profiles?.full_name || 'Unknown'}</p>
+                                <div className="hidden lg:block lg:col-span-1">
+                                    <p className="text-white text-sm truncate">{req.profiles?.full_name || 'Unknown'}</p>
                                     <p className="text-gray-500 text-xs">{req.profiles?.phone || 'No phone'}</p>
                                     <p className="text-gray-600 text-xs">
                                         {new Date(req.created_at).toLocaleDateString('en-NG', {
@@ -266,6 +306,32 @@ export default function RequestsTab({ requests, drivers }: RequestsTabProps) {
                                             month: 'short'
                                         })}
                                     </p>
+                                </div>
+
+                                {/* Delete button */}
+                                <div className="hidden lg:flex lg:col-span-1 items-start justify-end">
+                                    <button
+                                        onClick={() => setConfirmDeleteId(req.id)}
+                                        disabled={deletingId === req.id}
+                                        title="Delete request"
+                                        className="p-1.5 text-gray-600 hover:text-red-500 hover:bg-red-500/10 rounded-lg transition-colors disabled:opacity-50"
+                                    >
+                                        {deletingId === req.id
+                                            ? <span className="w-4 h-4 block border-2 border-red-500/30 border-t-red-500 rounded-full animate-spin" />
+                                            : <Trash2 className="w-4 h-4" />}
+                                    </button>
+                                </div>
+
+                                {/* Mobile delete button — shown at bottom of stacked row */}
+                                <div className="flex lg:hidden justify-end pt-1 border-t border-[#1A1A1A] mt-1">
+                                    <button
+                                        onClick={() => setConfirmDeleteId(req.id)}
+                                        disabled={deletingId === req.id}
+                                        className="flex items-center gap-1.5 text-xs text-red-500 hover:text-red-400 transition-colors disabled:opacity-50"
+                                    >
+                                        <Trash2 className="w-3.5 h-3.5" />
+                                        Delete Request
+                                    </button>
                                 </div>
                             </div>
 

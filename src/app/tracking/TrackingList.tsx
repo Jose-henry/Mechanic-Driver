@@ -3,15 +3,15 @@
 import Link from 'next/link'
 import { useState, useEffect } from 'react'
 import { useRouter } from 'next/navigation'
-import { Car, Plus } from 'lucide-react'
+import { Car, Plus, Star } from 'lucide-react'
 import TrackingCard from './TrackingCard'
 import { createClient } from '@/utils/supabase/client'
 
 
-export function TrackingList({ requests, servicePrices }: { requests: any[], servicePrices: any[] }) {
+export function TrackingList({ requests, servicePrices, autoOpenReview }: { requests: any[], servicePrices: any[], autoOpenReview?: boolean }) {
     const router = useRouter()
     const [cancelledIds, setCancelledIds] = useState<Set<string>>(new Set())
-    const [activeTab, setActiveTab] = useState<'active' | 'history'>('active')
+    const [activeTab, setActiveTab] = useState<'active' | 'history'>(autoOpenReview ? 'history' : 'active')
 
     // Realtime: Listen for ANY changes to requests to update the list/tabs
     useEffect(() => {
@@ -88,6 +88,13 @@ export function TrackingList({ requests, servicePrices }: { requests: any[], ser
                     New Request
                 </Link>
             </div>
+
+            {autoOpenReview && activeTab === 'history' && historyRequests.length > 0 && (
+                <div className="flex items-center gap-3 bg-lime-50 border border-lime-200 rounded-2xl px-5 py-4 text-sm text-lime-800">
+                    <Star className="w-5 h-5 text-lime-500 fill-lime-500 shrink-0" />
+                    <p>Tap your driver's name or photo on a completed request to open their profile and leave a review.</p>
+                </div>
+            )}
 
             {displayRequests.length === 0 ? (
                 // Empty State

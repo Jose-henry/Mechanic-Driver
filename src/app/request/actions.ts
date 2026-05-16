@@ -97,11 +97,13 @@ export async function submitRequest(prevState: any, formData: FormData) {
         `
     )
 
-    // Fire and forget — intentionally not awaited so it doesn't block the redirect
+    // Fire and forget — does not block the redirect; errors are swallowed to avoid unhandled rejections
     sendEmail({
-        to: process.env.SUPPORT_EMAIL || 'support@mechanicdriver.com', // Notification to admins
+        to: process.env.SUPPORT_EMAIL || 'support@mechanicdriver.com',
         subject: `New Request: ${request.year} ${request.brand} ${request.model}`,
         html: emailHtml
+    }).catch(emailError => {
+        console.error('[submitRequest] Admin email failed:', emailError)
     })
 
     // Redirect to tracking page directly
@@ -177,7 +179,7 @@ export async function submitRequestJson(data: any) {
         )
         await sendEmail({
             to: process.env.SUPPORT_EMAIL || 'support@mechanicdriver.com',
-            subject: `New Request (Deferred): ${request.year} ${request.brand} ${request.model}`,
+            subject: `New Request: ${request.year} ${request.brand} ${request.model}`,
             html: emailHtml
         })
     } catch (emailError) {
@@ -213,9 +215,13 @@ export async function cancelRequest(requestId: string) {
         'completed'
     ]
 
-    if (nonCancellableStatuses.includes(request.status)) {
+    if (request.status && nonCancellableStatuses.includes(request.status)) {
         return { error: 'Cannot cancel request at this stage' }
     }
+
+    // Clean up dependencies before deleting (FK constraints)
+    await supabase.from('outstanding_charges').delete().eq('request_id', requestId)
+    await supabase.from('quotes').delete().eq('request_id', requestId)
 
     // Hard Delete
     const { error } = await supabase
@@ -234,7 +240,7 @@ export async function cancelRequest(requestId: string) {
         `
         ${generateSection('Cancellation Details')}
         ${generateKeyValue('Request ID', request.id)}
-        ${generateKeyValue('Status at Cancellation', request.status)}
+        ${generateKeyValue('Status at Cancellation', request.status || 'N/A')}
         ${generateKeyValue('Cancelled At', new Date().toLocaleString('en-NG', { timeZone: 'Africa/Lagos' }))}
 
         ${generateSection('Vehicle Information')}

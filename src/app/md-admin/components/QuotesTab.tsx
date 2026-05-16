@@ -26,6 +26,8 @@ const STATUS_COLORS: Record<string, string> = {
     rejected: 'bg-red-500/10 text-red-500 border-red-500/20',
 };
 
+const QUOTEABLE_STATUSES = ['diagnosing', 'arrived', 'accepted', 'en_route', 'maintenance_in_progress'];
+
 export default function QuotesTab({ quotes, requests, drivers }: QuotesTabProps) {
     const router = useRouter();
     const { showToast } = useToast();
@@ -45,7 +47,9 @@ export default function QuotesTab({ quotes, requests, drivers }: QuotesTabProps)
     }, [router]);
 
     const quotedRequestIds = new Set(quotes.map(q => q.request_id));
-    const availableRequests = requests.filter(r => !quotedRequestIds.has(r.id));
+    const availableRequests = requests.filter(r =>
+        !quotedRequestIds.has(r.id) && QUOTEABLE_STATUSES.includes(r.status)
+    );
 
     const calculatedAmount = useMemo(() => {
         return breakdownItems.reduce((sum, item) => sum + (parseFloat(item.value) || 0), 0);
@@ -215,7 +219,10 @@ export default function QuotesTab({ quotes, requests, drivers }: QuotesTabProps)
     };
 
     const getAvailableRequestsForEdit = (currentRequestId: string) => {
-        return requests.filter(r => !quotedRequestIds.has(r.id) || r.id === currentRequestId);
+        return requests.filter(r =>
+            (!quotedRequestIds.has(r.id) || r.id === currentRequestId) &&
+            (QUOTEABLE_STATUSES.includes(r.status) || r.id === currentRequestId)
+        );
     };
 
     return (

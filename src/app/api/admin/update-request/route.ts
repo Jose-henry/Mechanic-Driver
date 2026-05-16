@@ -314,35 +314,112 @@ export async function POST(request: NextRequest) {
             } catch (e) { console.error('[update-request] vehicle_enroute_back email failed:', e) }
         }
 
-        // Email: Status -> Completed (Job Finished)
+        // Email: Status -> Completed (full financial summary)
         if (value === 'completed' && userEmail) {
+            // Fetch quote, service prices, and all settled outstanding charges
+            const [quoteRes, pricesRes, outstandingRes] = await Promise.all([
+                supabase.from('quotes').select('amount, breakdown').eq('request_id', requestId).eq('status', 'accepted').single(),
+                supabase.from('service_prices').select('key, price, label'),
+                supabase.from('outstanding_charges').select('description, total_amount, breakdown').eq('request_id', requestId).in('status', ['paid', 'completed'])
+            ])
+
+            const quote = quoteRes.data
+            const servicePrices = pricesRes.data || []
+            const settledCharges = outstandingRes.data || []
+            const getPrice = (key: string) => Number(servicePrices.find(p => p.key === key)?.price || 0)
+            const getLabel = (key: string) => servicePrices.find(p => p.key === key)?.label || ''
+
+            // Build quote + service breakdown
+            const quoteItems: { description: string; amount: number }[] = []
+            if (quote?.breakdown && typeof quote.breakdown === 'object' && !Array.isArray(quote.breakdown)) {
+                Object.entries(quote.breakdown as Record<string, number>).forEach(([k, v]) => {
+                    if (k) quoteItems.push({ description: k, amount: Number(v) })
+                })
+            }
+
+            const pickupReturnPrice = getPrice('pickup_return')
+            const towingPrice = req.is_towing ? getPrice('towing_intracity') : 0
+            const carWashPrice = req.is_car_wash ? getPrice('car_wash_premium') : 0
+
+            if (pickupReturnPrice > 0) quoteItems.push({ description: getLabel('pickup_return') || 'Pickup & Return', amount: pickupReturnPrice })
+            if (towingPrice > 0) quoteItems.push({ description: getLabel('towing_intracity') || 'Towing Service', amount: towingPrice })
+            if (carWashPrice > 0) quoteItems.push({ description: getLabel('car_wash_premium') || 'Premium Car Wash', amount: carWashPrice })
+
+            const quoteSubtotal = quoteItems.reduce((s, i) => s + i.amount, 0)
+
+            // Build outstanding charges breakdown
+            const outstandingRows = settledCharges.map(c => {
+                const items: { description: string; amount: number }[] = []
+                if (c.breakdown && typeof c.breakdown === 'object') {
+                    Object.entries(c.breakdown as Record<string, number>).forEach(([k, v]) => {
+                        if (k) items.push({ description: k, amount: Number(v) })
+                    })
+                }
+                return { description: c.description, amount: Number(c.total_amount), items }
+            })
+            const outstandingTotal = outstandingRows.reduce((s, c) => s + c.amount, 0)
+            const grandTotal = quoteSubtotal + outstandingTotal
+
             const emailContent = `
                 <p style="color: #e5e5e5; font-size: 16px; margin-bottom: 24px;">
-                    Hello ${userName}, your service request has been marked as <strong>Completed</strong>! 🎉
+                    Hello ${userName}, your service request has been completed! Here is a full summary of everything paid.
                 </p>
 
-                <div style="background-color: #1a2e15; border: 1px solid #365314; padding: 20px; border-radius: 8px; text-align: center; margin-bottom: 20px;">
+                <div style="background-color: #1a2e15; border: 1px solid #365314; padding: 20px; border-radius: 8px; text-align: center; margin-bottom: 28px;">
                     <p style="color: #4ade80; font-size: 18px; margin: 0; font-weight: bold;">✅ Job Completed Successfully</p>
                     <p style="color: #86efac; font-size: 14px; margin: 8px 0 0;">Your vehicle has been serviced and returned.</p>
                 </div>
 
-                ${generateSection('Service Summary')}
+                ${generateSection('Vehicle Details')}
                 ${generateKeyValue('Vehicle', `${req.year} ${req.brand} ${req.model}`)}
                 ${generateKeyValue('License Plate', req.license_plate || 'N/A')}
                 ${generateKeyValue('Service Type', req.service_type || 'General Service')}
 
-                <p style="color: #888; font-size: 13px; margin-top: 20px;">
-                    Thank you for choosing Mechanic Driver! We hope you're satisfied with our service. If you have any feedback, please let us know.
+                ${quoteItems.length > 0 ? `
+                ${generateSection('Repair & Service Charges')}
+                ${generateReceiptTable(quoteItems, quoteSubtotal)}
+                ` : ''}
+
+                ${outstandingRows.length > 0 ? `
+                ${generateSection('Additional Outstanding Charges')}
+                ${outstandingRows.map(c => `
+                    <div style="margin-bottom:12px;">
+                        <p style="color:#fcd34d;font-size:13px;font-weight:600;margin:0 0 6px;">${c.description} — ₦${c.amount.toLocaleString()}</p>
+                        ${c.items.map(i => `
+                        <div style="display:flex;justify-content:space-between;padding:4px 0 4px 12px;border-left:2px solid #333;">
+                            <span style="color:#9ca3af;font-size:12px;">${i.description}</span>
+                            <span style="color:#e5e5e5;font-size:12px;font-family:monospace;">₦${i.amount.toLocaleString()}</span>
+                        </div>`).join('')}
+                    </div>
+                `).join('')}
+                <div style="text-align:right;padding-top:8px;border-top:1px solid #333;">
+                    <span style="color:#9ca3af;font-size:13px;">Outstanding Total: </span>
+                    <span style="color:#fcd34d;font-size:14px;font-weight:bold;">₦${outstandingTotal.toLocaleString()}</span>
+                </div>
+                ` : ''}
+
+                <div style="background-color:#111;border:1px solid #365314;padding:20px;border-radius:8px;margin-top:24px;display:flex;justify-content:space-between;align-items:center;">
+                    <span style="color:#9ca3af;font-size:15px;font-weight:600;">Grand Total Paid</span>
+                    <span style="color:#4ade80;font-size:24px;font-weight:bold;">₦${grandTotal.toLocaleString()}</span>
+                </div>
+
+                <div style="margin-top:30px;padding-top:20px;border-top:1px dashed #333;text-align:center;">
+                    <p style="color:#666;font-size:12px;margin:0;">Reference</p>
+                    <p style="color:#888;font-family:monospace;font-size:13px;margin:5px 0;">${requestId.toUpperCase()}</p>
+                </div>
+
+                <p style="color: #888; font-size: 13px; margin-top: 24px;">
+                    Thank you for choosing Mechanic Driver! If you have any feedback, please let us know.
                 </p>
 
-                ${generateCTAButton('Leave a Review', 'https://mechanicdriver.com/tracking')}
+                ${generateCTAButton('Leave a Review', `https://mechanicdriver.com/tracking?review=true`)}
             `
 
             try {
                 await sendEmail({
                     to: userEmail,
-                    subject: `Service Completed - Thank You! - ${req.brand} ${req.model}`,
-                    html: getEmailTemplate('Service Completed', emailContent)
+                    subject: `Service Complete — Full Receipt — ${req.brand} ${req.model}`,
+                    html: getEmailTemplate('Service Complete — Full Receipt', emailContent)
                 })
             } catch (e) { console.error('[update-request] completed email failed:', e) }
         }

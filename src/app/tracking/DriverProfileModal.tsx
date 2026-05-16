@@ -2,7 +2,8 @@
 
 import React, { useState, useEffect } from 'react'
 import { createPortal } from 'react-dom'
-import { X, Phone, MessageCircle, Star, MapPin, Share2, AlertTriangle, User, CheckCircle } from 'lucide-react'
+import { X, Phone, MessageCircle, Star, MapPin, Share2, AlertTriangle, User, CheckCircle, Loader2 } from 'lucide-react'
+import { submitRating } from './actions'
 
 interface Review {
     id: string
@@ -33,12 +34,21 @@ interface DriverProfileModalProps {
     onClose: () => void
     driver: Driver
     onCancelRequest?: () => void
+    requestId?: string
+    isCompleted?: boolean
+    hasReviewed?: boolean
 }
 
-export default function DriverProfileModal({ isOpen, onClose, driver, onCancelRequest }: DriverProfileModalProps) {
+export default function DriverProfileModal({ isOpen, onClose, driver, onCancelRequest, requestId, isCompleted, hasReviewed }: DriverProfileModalProps) {
     const [isCopied, setIsCopied] = useState(false)
     const [isDesktop, setIsDesktop] = useState(false)
     const [mounted, setMounted] = useState(false)
+    const [reviewRating, setReviewRating] = useState(0)
+    const [reviewHover, setReviewHover] = useState(0)
+    const [reviewComment, setReviewComment] = useState('')
+    const [reviewLoading, setReviewLoading] = useState(false)
+    const [reviewSubmitted, setReviewSubmitted] = useState(false)
+    const [reviewError, setReviewError] = useState('')
 
     // Ensure we have a display name
     const displayName = driver.full_name || driver.name || 'Driver'
@@ -77,6 +87,19 @@ export default function DriverProfileModal({ isOpen, onClose, driver, onCancelRe
             window.open(`https://web.whatsapp.com/send?phone=${driver.phone_number}`, '_blank')
         }
         // Mobile/Tablet behavior: default 'wa.me' link opens App
+    }
+
+    const handleSubmitReview = async () => {
+        if (!requestId || reviewRating === 0) return
+        setReviewLoading(true)
+        setReviewError('')
+        const res = await submitRating(requestId, reviewRating, reviewComment)
+        setReviewLoading(false)
+        if (res.success) {
+            setReviewSubmitted(true)
+        } else {
+            setReviewError(res.error || 'Failed to submit review')
+        }
     }
 
     const handleShare = () => {
@@ -212,6 +235,72 @@ View Profile: ${window.location.href}
                             )}
                         </div>
                     </div>
+
+                    {/* Leave a Review — only for completed requests */}
+                    {isCompleted && requestId && (
+                        <div className="mb-8 border-t border-gray-100 pt-6">
+                            <h3 className="text-sm font-bold text-gray-900 mb-3 uppercase tracking-wide">Leave a Review</h3>
+
+                            {reviewSubmitted || hasReviewed ? (
+                                <div className="flex items-center gap-2 bg-green-50 border border-green-100 rounded-2xl p-4">
+                                    <CheckCircle className="w-5 h-5 text-green-500 shrink-0" />
+                                    <p className="text-sm text-green-700 font-medium">Thanks for your review!</p>
+                                </div>
+                            ) : (
+                                <div className="space-y-4">
+                                    {/* Star selector */}
+                                    <div className="flex gap-1">
+                                        {[1, 2, 3, 4, 5].map((star) => (
+                                            <button
+                                                key={star}
+                                                type="button"
+                                                onClick={() => setReviewRating(star)}
+                                                onMouseEnter={() => setReviewHover(star)}
+                                                onMouseLeave={() => setReviewHover(0)}
+                                                className="focus:outline-none"
+                                            >
+                                                <Star
+                                                    className={`w-8 h-8 transition-colors ${
+                                                        star <= (reviewHover || reviewRating)
+                                                            ? 'text-yellow-400 fill-yellow-400'
+                                                            : 'text-gray-300'
+                                                    }`}
+                                                />
+                                            </button>
+                                        ))}
+                                        {reviewRating > 0 && (
+                                            <span className="ml-2 text-sm text-gray-500 self-center">
+                                                {['', 'Poor', 'Fair', 'Good', 'Great', 'Excellent'][reviewRating]}
+                                            </span>
+                                        )}
+                                    </div>
+
+                                    {/* Comment */}
+                                    <textarea
+                                        value={reviewComment}
+                                        onChange={(e) => setReviewComment(e.target.value)}
+                                        placeholder="Share your experience with this driver (optional)..."
+                                        rows={3}
+                                        className="w-full text-sm text-gray-700 bg-gray-50 border border-gray-200 rounded-xl px-4 py-3 focus:outline-none focus:ring-2 focus:ring-lime-300 resize-none placeholder:text-gray-400"
+                                    />
+
+                                    {reviewError && (
+                                        <p className="text-xs text-red-500">{reviewError}</p>
+                                    )}
+
+                                    <button
+                                        onClick={handleSubmitReview}
+                                        disabled={reviewRating === 0 || reviewLoading}
+                                        className="w-full py-3 bg-gray-900 text-white rounded-2xl font-medium text-sm hover:bg-gray-800 transition-all disabled:opacity-40 disabled:cursor-not-allowed flex items-center justify-center gap-2"
+                                    >
+                                        {reviewLoading
+                                            ? <><Loader2 className="w-4 h-4 animate-spin" /> Submitting...</>
+                                            : 'Submit Review'}
+                                    </button>
+                                </div>
+                            )}
+                        </div>
+                    )}
 
                     {/* Action Buttons */}
                     <div className="grid grid-cols-2 gap-3 mb-4">

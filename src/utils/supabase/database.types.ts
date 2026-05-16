@@ -44,38 +44,91 @@ export type Database = {
       drivers: {
         Row: {
           avatar_url: string | null
+          bio: string | null
           created_at: string | null
           full_name: string
           id: string
           is_verified: boolean | null
+          jobs_completed: number | null
           license_url: string | null
+          location: string | null
           phone_number: string | null
-          rating_label: string | null
+          ratings: number | null
           workshop_location: string | null
         }
         Insert: {
           avatar_url?: string | null
+          bio?: string | null
           created_at?: string | null
           full_name: string
           id?: string
           is_verified?: boolean | null
+          jobs_completed?: number | null
           license_url?: string | null
+          location?: string | null
           phone_number?: string | null
-          rating_label?: string | null
+          ratings?: number | null
           workshop_location?: string | null
         }
         Update: {
           avatar_url?: string | null
+          bio?: string | null
           created_at?: string | null
           full_name?: string
           id?: string
           is_verified?: boolean | null
+          jobs_completed?: number | null
           license_url?: string | null
+          location?: string | null
           phone_number?: string | null
-          rating_label?: string | null
+          ratings?: number | null
           workshop_location?: string | null
         }
         Relationships: []
+      }
+      outstanding_charges: {
+        Row: {
+          breakdown: Json | null
+          created_at: string | null
+          description: string
+          id: string
+          is_locked: boolean | null
+          rejection_reason: string | null
+          request_id: string
+          status: string | null
+          total_amount: number | null
+        }
+        Insert: {
+          breakdown?: Json | null
+          created_at?: string | null
+          description?: string
+          id?: string
+          is_locked?: boolean | null
+          rejection_reason?: string | null
+          request_id: string
+          status?: string | null
+          total_amount?: number | null
+        }
+        Update: {
+          breakdown?: Json | null
+          created_at?: string | null
+          description?: string
+          id?: string
+          is_locked?: boolean | null
+          rejection_reason?: string | null
+          request_id?: string
+          status?: string | null
+          total_amount?: number | null
+        }
+        Relationships: [
+          {
+            foreignKeyName: "outstanding_charges_request_id_fkey"
+            columns: ["request_id"]
+            isOneToOne: false
+            referencedRelation: "requests"
+            referencedColumns: ["id"]
+          },
+        ]
       }
       profiles: {
         Row: {
@@ -145,6 +198,7 @@ export type Database = {
       requests: {
         Row: {
           brand: string
+          contact_phone: string | null
           created_at: string
           id: string
           is_car_wash: boolean | null
@@ -162,11 +216,13 @@ export type Database = {
           review: string | null
           service_type: string | null
           status: string | null
+          total_amount: number | null
           user_id: string
           year: number
         }
         Insert: {
           brand: string
+          contact_phone?: string | null
           created_at?: string
           id?: string
           is_car_wash?: boolean | null
@@ -184,11 +240,13 @@ export type Database = {
           review?: string | null
           service_type?: string | null
           status?: string | null
+          total_amount?: number | null
           user_id: string
           year: number
         }
         Update: {
           brand?: string
+          contact_phone?: string | null
           created_at?: string
           id?: string
           is_car_wash?: boolean | null
@@ -206,6 +264,7 @@ export type Database = {
           review?: string | null
           service_type?: string | null
           status?: string | null
+          total_amount?: number | null
           user_id?: string
           year?: number
         }
@@ -225,6 +284,72 @@ export type Database = {
             referencedColumns: ["id"]
           },
         ]
+      }
+      reviews: {
+        Row: {
+          comment: string | null
+          created_at: string | null
+          driver_id: string | null
+          id: string
+          rating: number
+          request_id: string | null
+          reviewer_name: string | null
+        }
+        Insert: {
+          comment?: string | null
+          created_at?: string | null
+          driver_id?: string | null
+          id?: string
+          rating: number
+          request_id?: string | null
+          reviewer_name?: string | null
+        }
+        Update: {
+          comment?: string | null
+          created_at?: string | null
+          driver_id?: string | null
+          id?: string
+          rating?: number
+          request_id?: string | null
+          reviewer_name?: string | null
+        }
+        Relationships: [
+          {
+            foreignKeyName: "reviews_driver_id_fkey"
+            columns: ["driver_id"]
+            isOneToOne: false
+            referencedRelation: "drivers"
+            referencedColumns: ["id"]
+          },
+          {
+            foreignKeyName: "reviews_request_id_fkey"
+            columns: ["request_id"]
+            isOneToOne: false
+            referencedRelation: "requests"
+            referencedColumns: ["id"]
+          },
+        ]
+      }
+      service_prices: {
+        Row: {
+          description: string | null
+          key: string
+          label: string | null
+          price: number
+        }
+        Insert: {
+          description?: string | null
+          key: string
+          label?: string | null
+          price?: number
+        }
+        Update: {
+          description?: string | null
+          key?: string
+          label?: string | null
+          price?: number
+        }
+        Relationships: []
       }
     }
     Views: {

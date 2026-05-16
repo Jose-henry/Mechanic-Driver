@@ -147,7 +147,7 @@ export default function OutstandingSection({ requestId, charges, isRequestComple
 
     const handleConfirmPayment = async (chargeId: string) => {
         setLoadingId(chargeId)
-        const data = await post('/api/admin/confirm-outstanding-payment', { chargeId })
+        const data = await post('/api/admin/set-outstanding-status', { chargeId, status: 'paid' })
         setLoadingId(null)
         if (data.success) {
             showToast('Payment confirmed — user receipt sent', 'success')
@@ -219,7 +219,9 @@ export default function OutstandingSection({ requestId, charges, isRequestComple
 
             {charges.map((charge, index) => {
                 const edit = chargeEdits[charge.id]
-                const isEditable = !!edit && !charge.is_locked
+                const isSettled = charge.status === 'paid' || charge.status === 'completed'
+                const isVerifying = charge.status === 'verifying'
+                const isEditable = !!edit && !charge.is_locked && !isSettled && !isVerifying
                 const isLoading = loadingId === charge.id
                 const localTotal = edit ? Object.values(edit.breakdown).reduce((s, v) => s + Number(v), 0) : charge.total_amount
 
@@ -356,6 +358,15 @@ export default function OutstandingSection({ requestId, charges, isRequestComple
                             )}
 
                             {/* Action buttons */}
+                            {charge.status === 'paid' && (
+                                <button
+                                    disabled
+                                    className="w-full py-2 bg-[#1A1A1A] text-gray-600 text-xs font-bold rounded-lg cursor-not-allowed flex items-center justify-center gap-2 border border-[#2A2A2A]"
+                                >
+                                    <Send className="w-3.5 h-3.5" />
+                                    Update & Re-notify User
+                                </button>
+                            )}
                             {isEditable && (
                                 <button
                                     onClick={() => handleSaveAndNotify(charge.id)}
@@ -366,7 +377,7 @@ export default function OutstandingSection({ requestId, charges, isRequestComple
                                     {charge.status === 'draft' ? 'Save & Notify User' : 'Update & Re-notify User'}
                                 </button>
                             )}
-                            {charge.status === 'verifying' && !isEditable && (
+                            {isVerifying && (
                                 <button
                                     onClick={() => handleConfirmPayment(charge.id)}
                                     disabled={isLoading}

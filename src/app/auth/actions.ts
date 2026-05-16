@@ -4,8 +4,17 @@ import { revalidatePath } from 'next/cache'
 import { redirect } from 'next/navigation'
 
 import { createClient } from '@/utils/supabase/server'
+import { sendEmail } from '@/utils/mail'
+import { getEmailTemplate, generateKeyValue, generateSection } from '@/utils/email-template'
 
 import { loginSchema, signupSchema } from '@/lib/schemas'
+
+function safeReturnTo(returnTo: string | null | undefined, fallback = '/tracking'): string {
+    if (!returnTo) return fallback
+    // Must be a relative path starting with / but not //
+    if (returnTo.startsWith('/') && !returnTo.startsWith('//')) return returnTo
+    return fallback
+}
 
 export async function login(formData: FormData) {
     const supabase = await createClient()
@@ -33,7 +42,7 @@ export async function login(formData: FormData) {
     }
 
     revalidatePath('/', 'layout')
-    redirect(returnTo || '/tracking')
+    redirect(safeReturnTo(returnTo))
 }
 
 export async function signup(formData: FormData) {
@@ -67,7 +76,7 @@ export async function signup(formData: FormData) {
                 last_name: lastName,
                 phone: phone,
             },
-            emailRedirectTo: `${process.env.NEXT_PUBLIC_BASE_URL || 'http://localhost:3000'}/auth/callback?returnTo=${returnTo || '/tracking'}`,
+            emailRedirectTo: `${process.env.NEXT_PUBLIC_BASE_URL || 'http://localhost:3000'}/auth/callback?returnTo=${safeReturnTo(returnTo)}`,
         },
     })
 
@@ -76,7 +85,7 @@ export async function signup(formData: FormData) {
     }
 
     revalidatePath('/', 'layout')
-    redirect(`/signup?message=Check email to continue sign in process`)
+    redirect(`/signin?message=Check your email to continue signing in`)
 }
 
 export async function loginWithGoogle(formData: FormData) {
@@ -86,7 +95,7 @@ export async function loginWithGoogle(formData: FormData) {
     const { data, error } = await supabase.auth.signInWithOAuth({
         provider: 'google',
         options: {
-            redirectTo: `${process.env.NEXT_PUBLIC_BASE_URL || 'http://localhost:3000'}/auth/callback${returnTo ? `?returnTo=${returnTo}` : ''}`,
+            redirectTo: `${process.env.NEXT_PUBLIC_BASE_URL || 'http://localhost:3000'}/auth/callback?returnTo=${safeReturnTo(returnTo)}`,
             queryParams: {
                 access_type: 'offline',
                 prompt: 'consent',
@@ -153,20 +162,88 @@ export async function deleteAccount(reason: string, description: string) {
     if (userRequests && userRequests.length > 0) {
         const requestIds = userRequests.map(r => r.id)
 
-        // 2. Delete Quotes linked to these requests
+        // 2. Delete Outstanding Charges linked to these requests
+        await supabaseAdmin.from('outstanding_charges').delete().in('request_id', requestIds)
+
+        // 3. Delete Quotes linked to these requests
         await supabaseAdmin.from('quotes').delete().in('request_id', requestIds)
 
-        // 3. Delete Reviews linked to these requests
+        // 4. Delete Reviews linked to these requests
         await supabaseAdmin.from('reviews').delete().in('request_id', requestIds)
 
-        // 4. Delete Requests
+        // 5. Delete Requests
         await supabaseAdmin.from('requests').delete().in('id', requestIds)
     }
 
     // 5. Delete Profile
     await supabaseAdmin.from('profiles').delete().eq('id', user.id)
 
-    // 6. Finally, Delete Auth User
+    // 6. Send emails before deleting auth user (email address becomes unavailable after deletion)
+    const userName = user.user_metadata?.full_name || 'Valued Customer'
+    const userEmail = user.email
+
+    if (userEmail) {
+        // Confirmation to the user
+        try {
+            await sendEmail({
+                to: userEmail,
+                subject: 'Your Mechanic Driver account has been deleted',
+                html: getEmailTemplate('Account Deleted', `
+                    <p style="color:#e5e5e5;font-size:16px;margin-bottom:24px;">
+                        Hello ${userName}, your account has been successfully deleted as requested.
+                    </p>
+
+                    <div style="background-color:#1a1a1a;border:1px solid #333;padding:20px;border-radius:8px;margin-bottom:24px;">
+                        <p style="color:#9ca3af;font-size:14px;margin:0 0 8px;">Reason provided</p>
+                        <p style="color:#e5e5e5;font-size:14px;font-style:italic;margin:0;">"${reason}"</p>
+                        ${description ? `<p style="color:#6b7280;font-size:13px;margin:8px 0 0;">${description}</p>` : ''}
+                    </div>
+
+                    <p style="color:#9ca3af;font-size:14px;line-height:1.6;">
+                        All your personal data, requests, and associated records have been permanently removed from our system.
+                        If you believe this was a mistake or would like to return in the future, you are welcome to create a new account at any time.
+                    </p>
+
+                    <p style="color:#6b7280;font-size:13px;margin-top:24px;">
+                        If you did not request this deletion or have concerns, please contact us at
+                        <a href="mailto:${process.env.SUPPORT_EMAIL || 'support@mechanicdriver.com'}" style="color:#84cc16;">
+                            ${process.env.SUPPORT_EMAIL || 'support@mechanicdriver.com'}
+                        </a>.
+                    </p>
+                `)
+            })
+        } catch (e) {
+            console.error('[deleteAccount] User confirmation email failed:', e)
+        }
+
+        // Notification to support
+        try {
+            await sendEmail({
+                to: process.env.SUPPORT_EMAIL || 'support@mechanicdriver.com',
+                subject: `Account Deleted — ${userEmail}`,
+                html: getEmailTemplate('Account Deletion Notice', `
+                    <p style="color:#e5e5e5;font-size:16px;margin-bottom:24px;">
+                        A user has deleted their account.
+                    </p>
+
+                    ${generateSection('User Details')}
+                    ${generateKeyValue('Name', userName)}
+                    ${generateKeyValue('Email', userEmail)}
+                    ${generateKeyValue('User ID', user.id)}
+
+                    ${generateSection('Deletion Reason')}
+                    ${generateKeyValue('Reason', reason)}
+                    ${description ? generateKeyValue('Description', description) : ''}
+
+                    ${generateKeyValue('Deleted At', new Date().toLocaleString('en-NG', { timeZone: 'Africa/Lagos' }))}
+                `)
+            })
+        } catch (e) {
+            console.error('[deleteAccount] Support notification email failed:', e)
+        }
+    }
+
+    // 7. Finally, Delete Auth User
     const { error } = await supabaseAdmin.auth.admin.deleteUser(user.id)
 
     if (error) {

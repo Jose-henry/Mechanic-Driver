@@ -12,6 +12,7 @@ export default async function TrackingPage({
 }) {
     const params = await searchParams
     const isVerified = params?.verified === 'true'
+    const autoOpenReview = params?.review === 'true'
 
     const supabase = await createClient()
     const { data: { user } } = await supabase.auth.getUser()
@@ -60,7 +61,7 @@ export default async function TrackingPage({
 
                 <PendingRequestManager />
 
-                <TrackingList requests={requests} servicePrices={servicePrices || []} />
+                <TrackingList requests={requests} servicePrices={servicePrices || []} autoOpenReview={autoOpenReview} />
 
             </div>
             <Footer />

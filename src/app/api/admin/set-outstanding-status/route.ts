@@ -47,10 +47,29 @@ export async function POST(request: NextRequest) {
 
     if (error) return NextResponse.json({ error: error.message }, { status: 500 })
 
-    // If setting to paid — update total and send receipt email
+    // If setting to paid — recalculate total_amount from scratch and send receipt email
     if (status === 'paid' && previousStatus !== 'paid' && req) {
-        const newTotal = (Number(req.total_amount) || 0) + Number(charge.total_amount)
-        await supabase.from('requests').update({ total_amount: newTotal }).eq('id', charge.request_id)
+        // Recalculate total from scratch.
+        // The charge is already 'paid' in the DB at this point, so querying all
+        // settled charges gives us the complete final set — no separate addition needed.
+        const [quoteRes, pricesRes, allSettledRes] = await Promise.all([
+            supabase.from('quotes').select('amount').eq('request_id', req.id).eq('status', 'accepted').single(),
+            supabase.from('service_prices').select('key, price'),
+            supabase.from('outstanding_charges').select('total_amount').eq('request_id', req.id).in('status', ['paid', 'completed'])
+        ])
+
+        const getPrice = (key: string) => Number(pricesRes.data?.find(p => p.key === key)?.price || 0)
+        const baseAmount = Number(quoteRes.data?.amount || 0)
+            + getPrice('pickup_return')
+            + (req.is_towing ? getPrice('towing_intracity') : 0)
+            + (req.is_car_wash ? getPrice('car_wash_premium') : 0)
+
+        const allSettledTotal = (allSettledRes.data || []).reduce((s, c) => s + Number(c.total_amount), 0)
+        const totalPaidToDate = baseAmount + allSettledTotal
+        // Previous total = everything except the current charge
+        const previousTotal = totalPaidToDate - Number(charge.total_amount)
+
+        await supabase.from('requests').update({ total_amount: totalPaidToDate }).eq('id', charge.request_id)
 
         if (userEmail) {
             const breakdownItems: { description: string; amount: number }[] = []
@@ -62,7 +81,7 @@ export async function POST(request: NextRequest) {
 
             const emailContent = `
                 <p style="color:#e5e5e5;font-size:16px;margin-bottom:24px;">
-                    Hello ${userName}, your outstanding balance payment has been confirmed!
+                    Hello ${userName}, your outstanding balance payment has been confirmed — thank you!
                 </p>
 
                 <div style="background-color:#1a2e15;border:1px solid #365314;padding:20px;border-radius:8px;text-align:center;margin-bottom:20px;">
@@ -70,24 +89,43 @@ export async function POST(request: NextRequest) {
                     <p style="color:#86efac;font-size:24px;font-weight:bold;margin:8px 0 0;">₦${Number(charge.total_amount).toLocaleString()}</p>
                 </div>
 
-                ${generateSection('Receipt Breakdown')}
+                ${generateSection('This Payment')}
                 ${generateKeyValue('Charge', charge.description || 'Additional charges')}
                 ${breakdownItems.length > 0
                     ? generateReceiptTable(breakdownItems, Number(charge.total_amount))
-                    : generateKeyValue('Total Amount', `₦${Number(charge.total_amount).toLocaleString()}`)}
+                    : generateKeyValue('Amount', `₦${Number(charge.total_amount).toLocaleString()}`)}
+
+                ${generateSection('Running Total')}
+                ${generateKeyValue('Previous Payments', `₦${previousTotal.toLocaleString()}`)}
+                ${generateKeyValue('This Outstanding Charge', `₦${Number(charge.total_amount).toLocaleString()}`)}
+                <div style="background-color:#111;border:1px solid #365314;padding:16px;border-radius:8px;margin-top:12px;">
+                    <div style="display:flex;justify-content:space-between;align-items:center;">
+                        <span style="color:#9ca3af;font-size:14px;font-weight:600;">Total Paid to Date</span>
+                        <span style="color:#4ade80;font-size:20px;font-weight:bold;">₦${totalPaidToDate.toLocaleString()}</span>
+                    </div>
+                </div>
 
                 ${generateSection('Vehicle Details')}
                 ${generateKeyValue('Vehicle', `${req.year} ${req.brand} ${req.model}`)}
                 ${generateKeyValue('License Plate', req.license_plate || 'N/A')}
+
+                <div style="margin-top:30px;padding-top:20px;border-top:1px dashed #333;text-align:center;">
+                    <p style="color:#666;font-size:12px;margin:0;">Reference</p>
+                    <p style="color:#888;font-family:monospace;font-size:14px;margin:5px 0;">${chargeId.toUpperCase().slice(0, 12)}</p>
+                </div>
                 ${generateCTAButton('Track Your Request', 'https://mechanicdriver.com/tracking')}
             `
 
-            const emailResult = await sendEmail({
-                to: userEmail,
-                subject: `Outstanding Payment Confirmed — ₦${Number(charge.total_amount).toLocaleString()} — ${req.brand} ${req.model}`,
-                html: getEmailTemplate('Outstanding Payment Confirmed', emailContent),
-            })
-            console.log('[set-outstanding-status] email result:', JSON.stringify(emailResult))
+            try {
+                const emailResult = await sendEmail({
+                    to: userEmail,
+                    subject: `Outstanding Payment Confirmed — ₦${Number(charge.total_amount).toLocaleString()} — ${req.brand} ${req.model}`,
+                    html: getEmailTemplate('Outstanding Payment Confirmed', emailContent),
+                })
+                console.log('[set-outstanding-status] receipt email sent:', JSON.stringify(emailResult))
+            } catch (e: any) {
+                console.error('[set-outstanding-status] receipt email failed:', e?.message)
+            }
         } else {
             console.error('[set-outstanding-status] Cannot send receipt — no user email. user_id:', req?.user_id, 'fetch_error:', userFetchError?.message)
         }
