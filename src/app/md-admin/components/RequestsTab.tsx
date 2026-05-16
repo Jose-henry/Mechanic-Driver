@@ -87,7 +87,7 @@ export default function RequestsTab({ requests, drivers }: RequestsTabProps) {
         }
     };
 
-    const handleDelete = async () => {
+    const handleDelete = async (reason?: string) => {
         if (!confirmDeleteId) return;
         const idToDelete = confirmDeleteId;
         setDeletingId(idToDelete);
@@ -96,7 +96,7 @@ export default function RequestsTab({ requests, drivers }: RequestsTabProps) {
             const response = await fetch('/api/admin/delete-request', {
                 method: 'POST',
                 headers: { 'Content-Type': 'application/json' },
-                body: JSON.stringify({ requestId: idToDelete })
+                body: JSON.stringify({ requestId: idToDelete, reason })
             });
             const data = await response.json();
             if (response.ok) {
@@ -129,10 +129,12 @@ export default function RequestsTab({ requests, drivers }: RequestsTabProps) {
                 onClose={() => setConfirmDeleteId(null)}
                 onConfirm={handleDelete}
                 title="Delete Request"
-                message="This will permanently delete the request along with all associated quotes, outstanding charges, and reviews. This cannot be undone."
+                message="This will permanently delete the request and all associated quotes, outstanding charges, and reviews. This cannot be undone."
                 confirmText="Delete Request"
                 isLoading={!!deletingId}
                 variant="danger"
+                requireReason
+                reasonPlaceholder="Why is this request being deleted? (e.g. duplicate entry, test data, user requested removal...)"
             />
 
             {/* Auto-refresh indicator */}
@@ -309,30 +311,37 @@ export default function RequestsTab({ requests, drivers }: RequestsTabProps) {
                                 </div>
 
                                 {/* Delete button */}
-                                <div className="hidden lg:flex lg:col-span-1 items-start justify-end">
-                                    <button
-                                        onClick={() => setConfirmDeleteId(req.id)}
-                                        disabled={deletingId === req.id}
-                                        title="Delete request"
-                                        className="p-1.5 text-gray-600 hover:text-red-500 hover:bg-red-500/10 rounded-lg transition-colors disabled:opacity-50"
-                                    >
-                                        {deletingId === req.id
-                                            ? <span className="w-4 h-4 block border-2 border-red-500/30 border-t-red-500 rounded-full animate-spin" />
-                                            : <Trash2 className="w-4 h-4" />}
-                                    </button>
-                                </div>
+                                {(() => {
+                                    const canDelete = !(req.payment_status === 'paid' && ['maintenance_in_progress', 'vehicle_enroute_back', 'completed'].includes(req.status))
+                                    if (!canDelete) return <div className="hidden lg:block lg:col-span-1" />
+                                    return (
+                                        <>
+                                            <div className="hidden lg:flex lg:col-span-1 items-start justify-end">
+                                                <button
+                                                    onClick={() => setConfirmDeleteId(req.id)}
+                                                    disabled={deletingId === req.id}
+                                                    title="Delete request"
+                                                    className="p-1.5 text-gray-600 hover:text-red-500 hover:bg-red-500/10 rounded-lg transition-colors disabled:opacity-50"
+                                                >
+                                                    {deletingId === req.id
+                                                        ? <span className="w-4 h-4 block border-2 border-red-500/30 border-t-red-500 rounded-full animate-spin" />
+                                                        : <Trash2 className="w-4 h-4" />}
+                                                </button>
+                                            </div>
 
-                                {/* Mobile delete button — shown at bottom of stacked row */}
-                                <div className="flex lg:hidden justify-end pt-1 border-t border-[#1A1A1A] mt-1">
-                                    <button
-                                        onClick={() => setConfirmDeleteId(req.id)}
-                                        disabled={deletingId === req.id}
-                                        className="flex items-center gap-1.5 text-xs text-red-500 hover:text-red-400 transition-colors disabled:opacity-50"
-                                    >
-                                        <Trash2 className="w-3.5 h-3.5" />
-                                        Delete Request
-                                    </button>
-                                </div>
+                                            <div className="flex lg:hidden justify-end pt-1 border-t border-[#1A1A1A] mt-1">
+                                                <button
+                                                    onClick={() => setConfirmDeleteId(req.id)}
+                                                    disabled={deletingId === req.id}
+                                                    className="flex items-center gap-1.5 text-xs text-red-500 hover:text-red-400 transition-colors disabled:opacity-50"
+                                                >
+                                                    <Trash2 className="w-3.5 h-3.5" />
+                                                    Delete Request
+                                                </button>
+                                            </div>
+                                        </>
+                                    )
+                                })()}
                             </div>
 
                             {/* Expanded Details */}

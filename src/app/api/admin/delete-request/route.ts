@@ -9,15 +9,19 @@ export async function POST(request: NextRequest) {
         return NextResponse.json({ error: 'Unauthorized' }, { status: 401 })
     }
 
-    const { requestId } = await request.json()
+    const { requestId, reason } = await request.json()
 
     if (!requestId) {
         return NextResponse.json({ error: 'Request ID is required' }, { status: 400 })
     }
 
+    if (!reason || reason.trim().length < 10) {
+        return NextResponse.json({ error: 'A reason of at least 10 characters is required' }, { status: 400 })
+    }
+
     const { data: req } = await supabase
         .from('requests')
-        .select('id')
+        .select('id, brand, model, year, user_id')
         .eq('id', requestId)
         .single()
 
@@ -35,6 +39,8 @@ export async function POST(request: NextRequest) {
     if (error) {
         return NextResponse.json({ error: error.message }, { status: 500 })
     }
+
+    console.log(`[delete-request] Request ${requestId} (${req.year} ${req.brand} ${req.model}) deleted. Reason: ${reason.trim()}`)
 
     return NextResponse.json({ success: true })
 }
