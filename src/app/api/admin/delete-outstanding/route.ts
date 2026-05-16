@@ -17,7 +17,7 @@ export async function POST(request: NextRequest) {
         .single()
 
     if (!charge) return NextResponse.json({ error: 'Charge not found' }, { status: 404 })
-    if (!['draft', 'rejected'].includes(charge.status)) {
+    if (!['draft', 'rejected'].includes(charge.status ?? '')) {
         return NextResponse.json({ error: 'Only draft or declined charges can be deleted' }, { status: 400 })
     }
 

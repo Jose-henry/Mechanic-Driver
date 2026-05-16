@@ -175,7 +175,7 @@ export async function markRequestPaid(requestId: string, details: { amount: numb
             breakdownItems.push({ description: key, amount: Number(val) })
         })
     } else if (Array.isArray(quote?.breakdown)) {
-        breakdownItems = [...quote.breakdown]
+        breakdownItems = (quote.breakdown as { description: string; amount: number }[])
     }
 
     if (req.is_towing) {
