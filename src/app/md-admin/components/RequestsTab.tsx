@@ -384,6 +384,7 @@ export default function RequestsTab({ requests, drivers }: RequestsTabProps) {
                                         requestId={req.id}
                                         charges={req.outstanding_charges || []}
                                         isRequestCompleted={req.status === 'completed'}
+                                        canAddCharge={req.payment_status === 'paid'}
                                     />
                                 </div>
                             )}

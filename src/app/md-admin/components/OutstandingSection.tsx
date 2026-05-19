@@ -20,6 +20,7 @@ interface OutstandingSectionProps {
     requestId: string
     charges: Charge[]
     isRequestCompleted: boolean
+    canAddCharge: boolean
 }
 
 type EditState = {
@@ -47,7 +48,7 @@ const STATUS_LABELS: Record<string, string> = {
     completed: '🔒 Completed (Permanent)',
 }
 
-export default function OutstandingSection({ requestId, charges, isRequestCompleted }: OutstandingSectionProps) {
+export default function OutstandingSection({ requestId, charges, isRequestCompleted, canAddCharge }: OutstandingSectionProps) {
     const router = useRouter()
     const { showToast } = useToast()
     const [chargeEdits, setChargeEdits] = useState<Record<string, EditState>>({})
@@ -201,7 +202,7 @@ export default function OutstandingSection({ requestId, charges, isRequestComple
                     Outstanding Charges
                     {charges.length > 0 && <span className="bg-amber-500/20 text-amber-300 text-[10px] px-2 py-0.5 rounded-full">{charges.length}</span>}
                 </h4>
-                {!isRequestCompleted && (
+                {canAddCharge && !isRequestCompleted && (
                     <button
                         onClick={handleCreate}
                         disabled={creatingNew}
