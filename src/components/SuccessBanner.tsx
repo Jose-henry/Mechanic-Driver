@@ -11,12 +11,11 @@ export function SuccessBanner({ message, description }: { message: string, descr
     useEffect(() => {
         const timer = setTimeout(() => {
             setIsVisible(false);
-            // Optional: Remove the query param from URL so it doesn't reappear on refresh
-            // router.replace('/tracking'); 
-        }, 5000); // Dissapear after 5 seconds
+            router.replace('/tracking');
+        }, 5000);
 
         return () => clearTimeout(timer);
-    }, []);
+    }, [router]);
 
     if (!isVisible) return null;
 

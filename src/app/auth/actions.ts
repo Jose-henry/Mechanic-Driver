@@ -76,7 +76,7 @@ export async function signup(formData: FormData) {
                 last_name: lastName,
                 phone: phone,
             },
-            emailRedirectTo: `${process.env.NEXT_PUBLIC_BASE_URL || 'http://localhost:3000'}/auth/callback?returnTo=${safeReturnTo(returnTo)}`,
+            emailRedirectTo: `${process.env.NEXT_PUBLIC_BASE_URL || 'http://localhost:3000'}/auth/callback?returnTo=${safeReturnTo(returnTo)}&type=signup`,
         },
     })
 

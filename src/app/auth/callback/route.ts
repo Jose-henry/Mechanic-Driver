@@ -30,16 +30,21 @@ export async function GET(request: Request) {
                 return NextResponse.redirect(`${origin}${returnTo || next}${verifiedParam}`)
             }
         } else {
-            // Race condition handling
+            // Already logged in (race condition — link clicked twice, or second tab)
             const { data: { user } } = await supabase.auth.getUser()
             if (user) {
-                // If we are here, we likely can't differentiate easily without session, 
-                // but if they are already logged in, it's safer not to show 'verified' unless we know?
-                // Let's assume if it was a race condition on a link, it was email.
-                // But could be re-used OAuth code? Unlikely.
                 return NextResponse.redirect(`${origin}${returnTo || next}`)
             }
             console.error('Auth verification error:', error.message)
+
+            // "flow state has expired" means Supabase already confirmed the email on its
+            // server (OTP was valid) but the PKCE session token expired — the account IS
+            // verified, the user just needs to sign in manually.
+            if (error.message.includes('flow state')) {
+                return NextResponse.redirect(
+                    `${origin}/signin?message=${encodeURIComponent('Email verified! Please sign in to continue.')}`
+                )
+            }
         }
     }
 
